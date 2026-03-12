@@ -47,7 +47,7 @@ export class Receiver {
       try {
         bonjour = new Bonjour();
 
-        const browser = bonjour.find({ type: 'codesync' }, (service) => {
+        const browser = bonjour.find({ type: 'simplesync' }, (service) => {
           const host = service.addresses?.[0] ?? service.host;
           sessions.push({
             name: service.name,
@@ -78,14 +78,14 @@ export class Receiver {
   }
 
   async showSessionPicker(): Promise<Session | undefined> {
-    const loading = vscode.window.setStatusBarMessage('$(sync~spin) CodeSync: Searching for sessions...');
+    const loading = vscode.window.setStatusBarMessage('$(sync~spin) SimpleSync: Searching for sessions...');
 
     const sessions = await this.discoverSessions();
     loading.dispose();
 
     if (sessions.length === 0) {
       const action = await vscode.window.showWarningMessage(
-        'No CodeSync sessions found on your network.',
+        'No SimpleSync sessions found on your network.',
         'Connect Manually',
         'Retry'
       );
@@ -101,7 +101,7 @@ export class Receiver {
     }));
 
     const selected = await vscode.window.showQuickPick(items, {
-      placeHolder: 'Select a CodeSync session to connect to',
+      placeHolder: 'Select a SimpleSync session to connect to',
     });
 
     return selected?.session;
@@ -116,13 +116,13 @@ export class Receiver {
 
     const [host, portStr] = input.split(':');
     if (!host || !portStr) {
-      vscode.window.showErrorMessage('CodeSync: Invalid format. Use IP:Port (e.g. 192.168.1.45:49201)');
+      vscode.window.showErrorMessage('SimpleSync: Invalid format. Use IP:Port (e.g. 192.168.1.45:49201)');
       return undefined;
     }
 
     const port = parseInt(portStr, 10);
     if (isNaN(port)) {
-      vscode.window.showErrorMessage('CodeSync: Invalid port number.');
+      vscode.window.showErrorMessage('SimpleSync: Invalid port number.');
       return undefined;
     }
 
@@ -144,7 +144,7 @@ export class Receiver {
         this.updateStatusBar(ConnectionState.Connected);
         this.eventLog.add('connect', `Connected to ${session.name}`, `${session.host}:${session.port}`);
         // Set context so Push Back menu item becomes visible
-        vscode.commands.executeCommand('setContext', 'codesync.isReceiver', true);
+        vscode.commands.executeCommand('setContext', 'simplesync.isReceiver', true);
       });
 
       this.ws.on('message', (data: WebSocket.RawData) => {
@@ -159,20 +159,20 @@ export class Receiver {
       this.ws.on('close', () => {
         this.output.appendLine(`[Receiver] Connection closed`);
         this.updateStatusBar(ConnectionState.Error);
-        vscode.commands.executeCommand('setContext', 'codesync.isReceiver', false);
+        vscode.commands.executeCommand('setContext', 'simplesync.isReceiver', false);
         this.attemptReconnect(session);
       });
 
       this.ws.on('error', (err: Error) => {
         this.output.appendLine(`[Receiver] Connection error: ${err.message}`);
         vscode.window.showErrorMessage(
-          `CodeSync: Could not connect to ${session.name}. Is it still broadcasting?`
+          `SimpleSync: Could not connect to ${session.name}. Is it still broadcasting?`
         );
       });
     } catch (err) {
       this.output.appendLine(`[Receiver] Failed to connect: ${err}`);
       this.updateStatusBar(ConnectionState.Error);
-      vscode.window.showErrorMessage(`CodeSync: Connection failed. ${err}`);
+      vscode.window.showErrorMessage(`SimpleSync: Connection failed. ${err}`);
     }
   }
 
@@ -187,11 +187,11 @@ export class Receiver {
   private writeFiles(sessionName: string, files: FileEntry[]): void {
     const workspaceRoot = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
     if (!workspaceRoot) {
-      vscode.window.showErrorMessage('CodeSync: No workspace folder open. Please open a folder first.');
+      vscode.window.showErrorMessage('SimpleSync: No workspace folder open. Please open a folder first.');
       return;
     }
 
-    const targetDir = path.join(workspaceRoot, `codesync-${sessionName}`);
+    const targetDir = path.join(workspaceRoot, `simplesync-${sessionName}`);
     this.receivedRoot = targetDir;
 
     let written = 0;
@@ -228,7 +228,7 @@ export class Receiver {
 
     // Build summary with file count and size info
     const largestSize = `${(largest.size / 1024).toFixed(1)}KB`;
-    let msg = `✓ CodeSync: ${written} files received from ${sessionName}`;
+    let msg = `✓ SimpleSync: ${written} files received from ${sessionName}`;
     if (largest.name) msg += `\n  Largest: ${largest.name} (${largestSize})`;
 
     vscode.window.showInformationMessage(msg);
@@ -343,7 +343,7 @@ export class Receiver {
 
     try {
       const choice = await vscode.window.showWarningMessage(
-        `CodeSync: "${fileName}" was modified locally. Incoming changes from broadcaster will overwrite your edits.`,
+        `SimpleSync: "${fileName}" was modified locally. Incoming changes from broadcaster will overwrite your edits.`,
         { modal: false },
         'Keep Mine',
         'Accept Incoming',
@@ -383,7 +383,7 @@ export class Receiver {
 
     try {
       const choice = await vscode.window.showWarningMessage(
-        `CodeSync: "${fileName}" was deleted by the broadcaster but you have local edits. Delete anyway?`,
+        `SimpleSync: "${fileName}" was deleted by the broadcaster but you have local edits. Delete anyway?`,
         { modal: false },
         'Keep Mine',
         'Delete',
@@ -418,7 +418,7 @@ export class Receiver {
   ): Promise<void> {
     if (!this.receivedRoot) return;
 
-    const incomingDir = path.join(this.receivedRoot, '.codesync-incoming');
+    const incomingDir = path.join(this.receivedRoot, '.simplesync-incoming');
     const incomingPath = path.join(incomingDir, relativePath);
 
     try {
@@ -446,7 +446,7 @@ export class Receiver {
     }
 
     const originalText = this.statusBar.text;
-    this.statusBar.text = `$(sync) CodeSync: ${fileName} updated (${summary})`;
+    this.statusBar.text = `$(sync) SimpleSync: ${fileName} updated (${summary})`;
 
     this.deltaStatusTimer = setTimeout(() => {
       // Restore normal status bar text
@@ -459,7 +459,7 @@ export class Receiver {
 
   async pushBack(): Promise<void> {
     if (!this.receivedRoot || !this.ws || this.ws.readyState !== WebSocket.OPEN) {
-      vscode.window.showWarningMessage('CodeSync: Not connected to a session.');
+      vscode.window.showWarningMessage('SimpleSync: Not connected to a session.');
       return;
     }
 
@@ -473,11 +473,11 @@ export class Receiver {
       this.output.appendLine(`[Receiver] Pushed ${files.length} files back to ${this.connectedSession?.name}`);
       this.eventLog.add('push', `Pushed ${files.length} file(s)`);
       vscode.window.showInformationMessage(
-        `✓ CodeSync: ${files.length} file(s) pushed back to ${this.connectedSession?.name}.`
+        `✓ SimpleSync: ${files.length} file(s) pushed back to ${this.connectedSession?.name}.`
       );
     } catch (err) {
       this.output.appendLine(`[Receiver] Error pushing back: ${err}`);
-      vscode.window.showErrorMessage(`CodeSync: Failed to push changes. ${err}`);
+      vscode.window.showErrorMessage(`SimpleSync: Failed to push changes. ${err}`);
     }
   }
 
@@ -512,7 +512,7 @@ export class Receiver {
   private async attemptReconnect(session: Session): Promise<void> {
     if (this.reconnectAttempts >= 3) {
       vscode.window.showErrorMessage(
-        `CodeSync: Lost connection to ${session.name}. Session may have ended.`
+        `SimpleSync: Lost connection to ${session.name}. Session may have ended.`
       );
       this.output.appendLine(`[Receiver] Reconnect attempts exhausted for ${session.name}`);
       this.reconnectAttempts = 0;
@@ -530,19 +530,19 @@ export class Receiver {
 
     switch (state) {
       case ConnectionState.Connecting:
-        this.statusBar.text = `$(sync~spin) CodeSync: Connecting to ${sessionName}...`;
+        this.statusBar.text = `$(sync~spin) SimpleSync: Connecting to ${sessionName}...`;
         this.statusBar.color = undefined;
-        this.statusBar.command = 'codesync.disconnect';
+        this.statusBar.command = 'simplesync.disconnect';
         break;
       case ConnectionState.Connected:
-        this.statusBar.text = `$(check) CodeSync: ${sessionName}`;
+        this.statusBar.text = `$(check) SimpleSync: ${sessionName}`;
         this.statusBar.color = '#16A34A';
-        this.statusBar.command = 'codesync.disconnect';
+        this.statusBar.command = 'simplesync.disconnect';
         break;
       case ConnectionState.Error:
-        this.statusBar.text = `$(error) CodeSync: Disconnected`;
+        this.statusBar.text = `$(error) SimpleSync: Disconnected`;
         this.statusBar.color = '#DC2626';
-        this.statusBar.command = 'codesync.disconnect';
+        this.statusBar.command = 'simplesync.disconnect';
         break;
       default:
         this.statusBar.text = '';
@@ -565,11 +565,11 @@ export class Receiver {
     this.pendingConflicts.clear();
     this.state = ConnectionState.Idle;
     this.statusBar.hide();
-    vscode.commands.executeCommand('setContext', 'codesync.isReceiver', false);
+    vscode.commands.executeCommand('setContext', 'simplesync.isReceiver', false);
 
     // Clean up temp incoming files used for diff editor
     if (this.receivedRoot) {
-      const incomingDir = path.join(this.receivedRoot, '.codesync-incoming');
+      const incomingDir = path.join(this.receivedRoot, '.simplesync-incoming');
       try {
         fs.rmSync(incomingDir, { recursive: true, force: true });
       } catch {
@@ -579,6 +579,6 @@ export class Receiver {
 
     this.output.appendLine(`[Receiver] Disconnected`);
     this.eventLog.add('disconnect', 'Disconnected');
-    vscode.window.showInformationMessage('CodeSync: Disconnected.');
+    vscode.window.showInformationMessage('SimpleSync: Disconnected.');
   }
 }

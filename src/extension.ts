@@ -5,8 +5,8 @@ import { EventLog } from './eventLog';
 import { SidebarProvider } from './sidebarProvider';
 
 export function activate(context: vscode.ExtensionContext): void {
-  // Single output channel for all CodeSync logging
-  const output = vscode.window.createOutputChannel('CodeSync');
+  // Single output channel for all SimpleSync logging
+  const output = vscode.window.createOutputChannel('SimpleSync');
   context.subscriptions.push(output);
 
   // Shared status bar item — both broadcaster and receiver use it
@@ -18,7 +18,7 @@ export function activate(context: vscode.ExtensionContext): void {
 
   // Sidebar tree view
   const sidebarProvider = new SidebarProvider(eventLog);
-  const treeView = vscode.window.createTreeView('codesyncPeers', {
+  const treeView = vscode.window.createTreeView('simplesyncPeers', {
     treeDataProvider: sidebarProvider,
     showCollapseAll: true,
   });
@@ -30,19 +30,19 @@ export function activate(context: vscode.ExtensionContext): void {
   // Show last session name hint in output
   const lastSession = context.workspaceState.get<string>('lastSessionName');
   if (lastSession) {
-    output.appendLine(`[CodeSync] Last session name was: ${lastSession}`);
+    output.appendLine(`[SimpleSync] Last session name was: ${lastSession}`);
   }
 
   context.subscriptions.push(
 
     // Right-click file or folder in explorer
-    vscode.commands.registerCommand('codesync.broadcast', async (uri: vscode.Uri) => {
+    vscode.commands.registerCommand('simplesync.broadcast', async (uri: vscode.Uri) => {
       let targetUri = uri;
       if (!targetUri) {
         if (vscode.workspace.workspaceFolders && vscode.workspace.workspaceFolders.length > 0) {
           targetUri = vscode.workspace.workspaceFolders[0].uri;
         } else {
-          vscode.window.showErrorMessage('CodeSync: Please open a workspace or right-click a folder to broadcast.');
+          vscode.window.showErrorMessage('SimpleSync: Please open a workspace or right-click a folder to broadcast.');
           return;
         }
       }
@@ -76,13 +76,13 @@ export function activate(context: vscode.ExtensionContext): void {
         const port = typeof addr === 'object' && addr !== null ? addr.port : 0;
         sidebarProvider.setSession('broadcasting', broadcaster.getSessionName(), `port ${port}`);
       } catch (err) {
-        output.appendLine(`[CodeSync] Error starting broadcast: ${err}`);
-        vscode.window.showErrorMessage(`CodeSync: Failed to start broadcasting. ${err}`);
+        output.appendLine(`[SimpleSync] Error starting broadcast: ${err}`);
+        vscode.window.showErrorMessage(`SimpleSync: Failed to start broadcasting. ${err}`);
       }
     }),
 
     // Command Palette → Connect to Session
-    vscode.commands.registerCommand('codesync.connect', async () => {
+    vscode.commands.registerCommand('simplesync.connect', async () => {
       try {
         // Stop broadcaster if active
         if (broadcaster) {
@@ -105,13 +105,13 @@ export function activate(context: vscode.ExtensionContext): void {
           sidebarProvider.addPeer(session.host);
         }
       } catch (err) {
-        output.appendLine(`[CodeSync] Error connecting: ${err}`);
-        vscode.window.showErrorMessage(`CodeSync: Connection failed. ${err}`);
+        output.appendLine(`[SimpleSync] Error connecting: ${err}`);
+        vscode.window.showErrorMessage(`SimpleSync: Connection failed. ${err}`);
       }
     }),
 
     // Status bar click or Command Palette → Stop Broadcasting
-    vscode.commands.registerCommand('codesync.stop', async () => {
+    vscode.commands.registerCommand('simplesync.stop', async () => {
       try {
         if (broadcaster) {
           await broadcaster.stop();
@@ -119,22 +119,22 @@ export function activate(context: vscode.ExtensionContext): void {
           sidebarProvider.clearSession();
         }
       } catch (err) {
-        output.appendLine(`[CodeSync] Error stopping broadcast: ${err}`);
+        output.appendLine(`[SimpleSync] Error stopping broadcast: ${err}`);
       }
     }),
 
     // Right-click in receiver workspace → Push Changes Back
-    vscode.commands.registerCommand('codesync.pushBack', async () => {
+    vscode.commands.registerCommand('simplesync.pushBack', async () => {
       try {
         await receiver?.pushBack();
       } catch (err) {
-        output.appendLine(`[CodeSync] Error pushing back: ${err}`);
-        vscode.window.showErrorMessage(`CodeSync: Push back failed. ${err}`);
+        output.appendLine(`[SimpleSync] Error pushing back: ${err}`);
+        vscode.window.showErrorMessage(`SimpleSync: Push back failed. ${err}`);
       }
     }),
 
     // Command Palette → Connect Manually via IP:Port
-    vscode.commands.registerCommand('codesync.connectManual', async () => {
+    vscode.commands.registerCommand('simplesync.connectManual', async () => {
       try {
         // Stop broadcaster if active
         if (broadcaster) {
@@ -157,13 +157,13 @@ export function activate(context: vscode.ExtensionContext): void {
           sidebarProvider.addPeer(session.host);
         }
       } catch (err) {
-        output.appendLine(`[CodeSync] Error in manual connect: ${err}`);
-        vscode.window.showErrorMessage(`CodeSync: Manual connection failed. ${err}`);
+        output.appendLine(`[SimpleSync] Error in manual connect: ${err}`);
+        vscode.window.showErrorMessage(`SimpleSync: Manual connection failed. ${err}`);
       }
     }),
 
     // Command Palette or status bar click → Disconnect (receiver only)
-    vscode.commands.registerCommand('codesync.disconnect', () => {
+    vscode.commands.registerCommand('simplesync.disconnect', () => {
       try {
         if (receiver) {
           receiver.disconnect();
@@ -171,13 +171,13 @@ export function activate(context: vscode.ExtensionContext): void {
           sidebarProvider.clearSession();
         }
       } catch (err) {
-        output.appendLine(`[CodeSync] Error disconnecting: ${err}`);
+        output.appendLine(`[SimpleSync] Error disconnecting: ${err}`);
       }
     }),
 
   );
 
-  output.appendLine('[CodeSync] Extension activated');
+  output.appendLine('[SimpleSync] Extension activated');
 }
 
 export function deactivate(): void {

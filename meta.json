@@ -1,0 +1,1158 @@
+{
+  "inputs": {
+    "node_modules/ws/lib/constants.js": {
+      "bytes": 503,
+      "imports": [],
+      "format": "cjs"
+    },
+    "node_modules/ws/lib/buffer-util.js": {
+      "bytes": 3056,
+      "imports": [
+        {
+          "path": "node_modules/ws/lib/constants.js",
+          "kind": "require-call",
+          "original": "./constants"
+        },
+        {
+          "path": "bufferutil",
+          "kind": "require-call",
+          "external": true
+        }
+      ],
+      "format": "cjs"
+    },
+    "node_modules/ws/lib/limiter.js": {
+      "bytes": 1034,
+      "imports": [],
+      "format": "cjs"
+    },
+    "node_modules/ws/lib/permessage-deflate.js": {
+      "bytes": 14510,
+      "imports": [
+        {
+          "path": "zlib",
+          "kind": "require-call",
+          "external": true
+        },
+        {
+          "path": "node_modules/ws/lib/buffer-util.js",
+          "kind": "require-call",
+          "original": "./buffer-util"
+        },
+        {
+          "path": "node_modules/ws/lib/limiter.js",
+          "kind": "require-call",
+          "original": "./limiter"
+        },
+        {
+          "path": "node_modules/ws/lib/constants.js",
+          "kind": "require-call",
+          "original": "./constants"
+        }
+      ],
+      "format": "cjs"
+    },
+    "node_modules/ws/lib/validation.js": {
+      "bytes": 3903,
+      "imports": [
+        {
+          "path": "buffer",
+          "kind": "require-call",
+          "external": true
+        },
+        {
+          "path": "node_modules/ws/lib/constants.js",
+          "kind": "require-call",
+          "original": "./constants"
+        },
+        {
+          "path": "utf-8-validate",
+          "kind": "require-call",
+          "external": true
+        }
+      ],
+      "format": "cjs"
+    },
+    "node_modules/ws/lib/receiver.js": {
+      "bytes": 16460,
+      "imports": [
+        {
+          "path": "stream",
+          "kind": "require-call",
+          "external": true
+        },
+        {
+          "path": "node_modules/ws/lib/permessage-deflate.js",
+          "kind": "require-call",
+          "original": "./permessage-deflate"
+        },
+        {
+          "path": "node_modules/ws/lib/constants.js",
+          "kind": "require-call",
+          "original": "./constants"
+        },
+        {
+          "path": "node_modules/ws/lib/buffer-util.js",
+          "kind": "require-call",
+          "original": "./buffer-util"
+        },
+        {
+          "path": "node_modules/ws/lib/validation.js",
+          "kind": "require-call",
+          "original": "./validation"
+        }
+      ],
+      "format": "cjs"
+    },
+    "node_modules/ws/lib/sender.js": {
+      "bytes": 16711,
+      "imports": [
+        {
+          "path": "stream",
+          "kind": "require-call",
+          "external": true
+        },
+        {
+          "path": "crypto",
+          "kind": "require-call",
+          "external": true
+        },
+        {
+          "path": "node_modules/ws/lib/permessage-deflate.js",
+          "kind": "require-call",
+          "original": "./permessage-deflate"
+        },
+        {
+          "path": "node_modules/ws/lib/constants.js",
+          "kind": "require-call",
+          "original": "./constants"
+        },
+        {
+          "path": "node_modules/ws/lib/validation.js",
+          "kind": "require-call",
+          "original": "./validation"
+        },
+        {
+          "path": "node_modules/ws/lib/buffer-util.js",
+          "kind": "require-call",
+          "original": "./buffer-util"
+        }
+      ],
+      "format": "cjs"
+    },
+    "node_modules/ws/lib/event-target.js": {
+      "bytes": 7321,
+      "imports": [
+        {
+          "path": "node_modules/ws/lib/constants.js",
+          "kind": "require-call",
+          "original": "./constants"
+        }
+      ],
+      "format": "cjs"
+    },
+    "node_modules/ws/lib/extension.js": {
+      "bytes": 6183,
+      "imports": [
+        {
+          "path": "node_modules/ws/lib/validation.js",
+          "kind": "require-call",
+          "original": "./validation"
+        }
+      ],
+      "format": "cjs"
+    },
+    "node_modules/ws/lib/websocket.js": {
+      "bytes": 36740,
+      "imports": [
+        {
+          "path": "events",
+          "kind": "require-call",
+          "external": true
+        },
+        {
+          "path": "https",
+          "kind": "require-call",
+          "external": true
+        },
+        {
+          "path": "http",
+          "kind": "require-call",
+          "external": true
+        },
+        {
+          "path": "net",
+          "kind": "require-call",
+          "external": true
+        },
+        {
+          "path": "tls",
+          "kind": "require-call",
+          "external": true
+        },
+        {
+          "path": "crypto",
+          "kind": "require-call",
+          "external": true
+        },
+        {
+          "path": "stream",
+          "kind": "require-call",
+          "external": true
+        },
+        {
+          "path": "url",
+          "kind": "require-call",
+          "external": true
+        },
+        {
+          "path": "node_modules/ws/lib/permessage-deflate.js",
+          "kind": "require-call",
+          "original": "./permessage-deflate"
+        },
+        {
+          "path": "node_modules/ws/lib/receiver.js",
+          "kind": "require-call",
+          "original": "./receiver"
+        },
+        {
+          "path": "node_modules/ws/lib/sender.js",
+          "kind": "require-call",
+          "original": "./sender"
+        },
+        {
+          "path": "node_modules/ws/lib/validation.js",
+          "kind": "require-call",
+          "original": "./validation"
+        },
+        {
+          "path": "node_modules/ws/lib/constants.js",
+          "kind": "require-call",
+          "original": "./constants"
+        },
+        {
+          "path": "node_modules/ws/lib/event-target.js",
+          "kind": "require-call",
+          "original": "./event-target"
+        },
+        {
+          "path": "node_modules/ws/lib/extension.js",
+          "kind": "require-call",
+          "original": "./extension"
+        },
+        {
+          "path": "node_modules/ws/lib/buffer-util.js",
+          "kind": "require-call",
+          "original": "./buffer-util"
+        }
+      ],
+      "format": "cjs"
+    },
+    "node_modules/ws/lib/stream.js": {
+      "bytes": 4204,
+      "imports": [
+        {
+          "path": "node_modules/ws/lib/websocket.js",
+          "kind": "require-call",
+          "original": "./websocket"
+        },
+        {
+          "path": "stream",
+          "kind": "require-call",
+          "external": true
+        }
+      ],
+      "format": "cjs"
+    },
+    "node_modules/ws/lib/subprotocol.js": {
+      "bytes": 1498,
+      "imports": [
+        {
+          "path": "node_modules/ws/lib/validation.js",
+          "kind": "require-call",
+          "original": "./validation"
+        }
+      ],
+      "format": "cjs"
+    },
+    "node_modules/ws/lib/websocket-server.js": {
+      "bytes": 16616,
+      "imports": [
+        {
+          "path": "events",
+          "kind": "require-call",
+          "external": true
+        },
+        {
+          "path": "http",
+          "kind": "require-call",
+          "external": true
+        },
+        {
+          "path": "stream",
+          "kind": "require-call",
+          "external": true
+        },
+        {
+          "path": "crypto",
+          "kind": "require-call",
+          "external": true
+        },
+        {
+          "path": "node_modules/ws/lib/extension.js",
+          "kind": "require-call",
+          "original": "./extension"
+        },
+        {
+          "path": "node_modules/ws/lib/permessage-deflate.js",
+          "kind": "require-call",
+          "original": "./permessage-deflate"
+        },
+        {
+          "path": "node_modules/ws/lib/subprotocol.js",
+          "kind": "require-call",
+          "original": "./subprotocol"
+        },
+        {
+          "path": "node_modules/ws/lib/websocket.js",
+          "kind": "require-call",
+          "original": "./websocket"
+        },
+        {
+          "path": "node_modules/ws/lib/constants.js",
+          "kind": "require-call",
+          "original": "./constants"
+        }
+      ],
+      "format": "cjs"
+    },
+    "node_modules/ws/wrapper.mjs": {
+      "bytes": 341,
+      "imports": [
+        {
+          "path": "node_modules/ws/lib/stream.js",
+          "kind": "import-statement",
+          "original": "./lib/stream.js"
+        },
+        {
+          "path": "node_modules/ws/lib/receiver.js",
+          "kind": "import-statement",
+          "original": "./lib/receiver.js"
+        },
+        {
+          "path": "node_modules/ws/lib/sender.js",
+          "kind": "import-statement",
+          "original": "./lib/sender.js"
+        },
+        {
+          "path": "node_modules/ws/lib/websocket.js",
+          "kind": "import-statement",
+          "original": "./lib/websocket.js"
+        },
+        {
+          "path": "node_modules/ws/lib/websocket-server.js",
+          "kind": "import-statement",
+          "original": "./lib/websocket-server.js"
+        }
+      ],
+      "format": "esm"
+    },
+    "node_modules/bonjour-service/dist/lib/utils/dns-equal.js": {
+      "bytes": 443,
+      "imports": [],
+      "format": "cjs"
+    },
+    "node_modules/bonjour-service/dist/lib/dns-txt.js": {
+      "bytes": 1145,
+      "imports": [],
+      "format": "cjs"
+    },
+    "node_modules/bonjour-service/dist/lib/service-types.js": {
+      "bytes": 1406,
+      "imports": [],
+      "format": "cjs"
+    },
+    "node_modules/bonjour-service/dist/lib/service.js": {
+      "bytes": 3767,
+      "imports": [
+        {
+          "path": "os",
+          "kind": "require-call",
+          "external": true
+        },
+        {
+          "path": "node_modules/bonjour-service/dist/lib/dns-txt.js",
+          "kind": "require-call",
+          "original": "./dns-txt"
+        },
+        {
+          "path": "events",
+          "kind": "require-call",
+          "external": true
+        },
+        {
+          "path": "node_modules/bonjour-service/dist/lib/service-types.js",
+          "kind": "require-call",
+          "original": "./service-types"
+        }
+      ],
+      "format": "cjs"
+    },
+    "node_modules/bonjour-service/dist/lib/registry.js": {
+      "bytes": 5235,
+      "imports": [
+        {
+          "path": "node_modules/bonjour-service/dist/lib/utils/dns-equal.js",
+          "kind": "require-call",
+          "original": "./utils/dns-equal"
+        },
+        {
+          "path": "node_modules/bonjour-service/dist/lib/service.js",
+          "kind": "require-call",
+          "original": "./service"
+        }
+      ],
+      "format": "cjs"
+    },
+    "node_modules/dns-packet/types.js": {
+      "bytes": 2672,
+      "imports": [],
+      "format": "cjs"
+    },
+    "node_modules/dns-packet/rcodes.js": {
+      "bytes": 1284,
+      "imports": [],
+      "format": "cjs"
+    },
+    "node_modules/dns-packet/opcodes.js": {
+      "bytes": 1315,
+      "imports": [],
+      "format": "cjs"
+    },
+    "node_modules/dns-packet/classes.js": {
+      "bytes": 437,
+      "imports": [],
+      "format": "cjs"
+    },
+    "node_modules/dns-packet/optioncodes.js": {
+      "bytes": 1398,
+      "imports": [],
+      "format": "cjs"
+    },
+    "node_modules/@leichtgewicht/ip-codec/index.cjs": {
+      "bytes": 7160,
+      "imports": [],
+      "format": "cjs"
+    },
+    "node_modules/dns-packet/index.js": {
+      "bytes": 44599,
+      "imports": [
+        {
+          "path": "buffer",
+          "kind": "require-call",
+          "external": true
+        },
+        {
+          "path": "node_modules/dns-packet/types.js",
+          "kind": "require-call",
+          "original": "./types"
+        },
+        {
+          "path": "node_modules/dns-packet/rcodes.js",
+          "kind": "require-call",
+          "original": "./rcodes"
+        },
+        {
+          "path": "node_modules/dns-packet/opcodes.js",
+          "kind": "require-call",
+          "original": "./opcodes"
+        },
+        {
+          "path": "node_modules/dns-packet/classes.js",
+          "kind": "require-call",
+          "original": "./classes"
+        },
+        {
+          "path": "node_modules/dns-packet/optioncodes.js",
+          "kind": "require-call",
+          "original": "./optioncodes"
+        },
+        {
+          "path": "node_modules/@leichtgewicht/ip-codec/index.cjs",
+          "kind": "require-call",
+          "original": "@leichtgewicht/ip-codec"
+        }
+      ],
+      "format": "cjs"
+    },
+    "node_modules/thunky/index.js": {
+      "bytes": 1057,
+      "imports": [],
+      "format": "cjs"
+    },
+    "node_modules/multicast-dns/index.js": {
+      "bytes": 5529,
+      "imports": [
+        {
+          "path": "node_modules/dns-packet/index.js",
+          "kind": "require-call",
+          "original": "dns-packet"
+        },
+        {
+          "path": "dgram",
+          "kind": "require-call",
+          "external": true
+        },
+        {
+          "path": "node_modules/thunky/index.js",
+          "kind": "require-call",
+          "original": "thunky"
+        },
+        {
+          "path": "events",
+          "kind": "require-call",
+          "external": true
+        },
+        {
+          "path": "os",
+          "kind": "require-call",
+          "external": true
+        }
+      ],
+      "format": "cjs"
+    },
+    "node_modules/fast-deep-equal/es6/index.js": {
+      "bytes": 1935,
+      "imports": [],
+      "format": "cjs"
+    },
+    "node_modules/bonjour-service/dist/lib/mdns-server.js": {
+      "bytes": 4220,
+      "imports": [
+        {
+          "path": "node_modules/multicast-dns/index.js",
+          "kind": "require-call",
+          "original": "multicast-dns"
+        },
+        {
+          "path": "node_modules/fast-deep-equal/es6/index.js",
+          "kind": "require-call",
+          "original": "fast-deep-equal/es6"
+        },
+        {
+          "path": "node_modules/bonjour-service/dist/lib/utils/dns-equal.js",
+          "kind": "require-call",
+          "original": "./utils/dns-equal"
+        }
+      ],
+      "format": "cjs"
+    },
+    "node_modules/bonjour-service/dist/lib/utils/filter-service.js": {
+      "bytes": 638,
+      "imports": [],
+      "format": "cjs"
+    },
+    "node_modules/bonjour-service/dist/lib/utils/filter-txt.js": {
+      "bytes": 292,
+      "imports": [],
+      "format": "cjs"
+    },
+    "node_modules/bonjour-service/dist/lib/utils/equal-txt.js": {
+      "bytes": 468,
+      "imports": [],
+      "format": "cjs"
+    },
+    "node_modules/bonjour-service/dist/lib/browser.js": {
+      "bytes": 7063,
+      "imports": [
+        {
+          "path": "node_modules/bonjour-service/dist/lib/dns-txt.js",
+          "kind": "require-call",
+          "original": "./dns-txt"
+        },
+        {
+          "path": "node_modules/bonjour-service/dist/lib/utils/dns-equal.js",
+          "kind": "require-call",
+          "original": "./utils/dns-equal"
+        },
+        {
+          "path": "events",
+          "kind": "require-call",
+          "external": true
+        },
+        {
+          "path": "node_modules/bonjour-service/dist/lib/service-types.js",
+          "kind": "require-call",
+          "original": "./service-types"
+        },
+        {
+          "path": "node_modules/bonjour-service/dist/lib/utils/filter-service.js",
+          "kind": "require-call",
+          "original": "./utils/filter-service"
+        },
+        {
+          "path": "node_modules/bonjour-service/dist/lib/utils/filter-txt.js",
+          "kind": "require-call",
+          "original": "./utils/filter-txt"
+        },
+        {
+          "path": "node_modules/bonjour-service/dist/lib/utils/equal-txt.js",
+          "kind": "require-call",
+          "original": "./utils/equal-txt"
+        }
+      ],
+      "format": "cjs"
+    },
+    "node_modules/bonjour-service/dist/index.js": {
+      "bytes": 1794,
+      "imports": [
+        {
+          "path": "node_modules/bonjour-service/dist/lib/registry.js",
+          "kind": "require-call",
+          "original": "./lib/registry"
+        },
+        {
+          "path": "node_modules/bonjour-service/dist/lib/mdns-server.js",
+          "kind": "require-call",
+          "original": "./lib/mdns-server"
+        },
+        {
+          "path": "node_modules/bonjour-service/dist/lib/browser.js",
+          "kind": "require-call",
+          "original": "./lib/browser"
+        },
+        {
+          "path": "node_modules/bonjour-service/dist/lib/service.js",
+          "kind": "require-call",
+          "original": "./lib/service"
+        }
+      ],
+      "format": "cjs"
+    },
+    "src/sessionName.ts": {
+      "bytes": 390,
+      "imports": [],
+      "format": "esm"
+    },
+    "src/exclusions.ts": {
+      "bytes": 3719,
+      "imports": [
+        {
+          "path": "path",
+          "kind": "import-statement",
+          "external": true
+        }
+      ],
+      "format": "esm"
+    },
+    "src/types.ts": {
+      "bytes": 1627,
+      "imports": [],
+      "format": "esm"
+    },
+    "src/broadcaster.ts": {
+      "bytes": 13668,
+      "imports": [
+        {
+          "path": "vscode",
+          "kind": "import-statement",
+          "external": true
+        },
+        {
+          "path": "node_modules/ws/wrapper.mjs",
+          "kind": "import-statement",
+          "original": "ws"
+        },
+        {
+          "path": "node_modules/bonjour-service/dist/index.js",
+          "kind": "import-statement",
+          "original": "bonjour-service"
+        },
+        {
+          "path": "fs",
+          "kind": "import-statement",
+          "external": true
+        },
+        {
+          "path": "path",
+          "kind": "import-statement",
+          "external": true
+        },
+        {
+          "path": "http",
+          "kind": "import-statement",
+          "external": true
+        },
+        {
+          "path": "src/sessionName.ts",
+          "kind": "import-statement",
+          "original": "./sessionName"
+        },
+        {
+          "path": "src/exclusions.ts",
+          "kind": "import-statement",
+          "original": "./exclusions"
+        },
+        {
+          "path": "src/types.ts",
+          "kind": "import-statement",
+          "original": "./types"
+        },
+        {
+          "path": "./eventLog",
+          "kind": "import-statement",
+          "external": true
+        }
+      ],
+      "format": "esm"
+    },
+    "node_modules/diff/lib/index.mjs": {
+      "bytes": 50091,
+      "imports": [],
+      "format": "esm"
+    },
+    "src/delta.ts": {
+      "bytes": 1103,
+      "imports": [
+        {
+          "path": "node_modules/diff/lib/index.mjs",
+          "kind": "import-statement",
+          "original": "diff"
+        }
+      ],
+      "format": "esm"
+    },
+    "src/receiver.ts": {
+      "bytes": 20525,
+      "imports": [
+        {
+          "path": "vscode",
+          "kind": "import-statement",
+          "external": true
+        },
+        {
+          "path": "node_modules/ws/wrapper.mjs",
+          "kind": "import-statement",
+          "original": "ws"
+        },
+        {
+          "path": "node_modules/bonjour-service/dist/index.js",
+          "kind": "import-statement",
+          "original": "bonjour-service"
+        },
+        {
+          "path": "fs",
+          "kind": "import-statement",
+          "external": true
+        },
+        {
+          "path": "path",
+          "kind": "import-statement",
+          "external": true
+        },
+        {
+          "path": "src/exclusions.ts",
+          "kind": "import-statement",
+          "original": "./exclusions"
+        },
+        {
+          "path": "src/types.ts",
+          "kind": "import-statement",
+          "original": "./types"
+        },
+        {
+          "path": "src/delta.ts",
+          "kind": "import-statement",
+          "original": "./delta"
+        },
+        {
+          "path": "./eventLog",
+          "kind": "import-statement",
+          "external": true
+        }
+      ],
+      "format": "esm"
+    },
+    "src/eventLog.ts": {
+      "bytes": 1582,
+      "imports": [
+        {
+          "path": "vscode",
+          "kind": "import-statement",
+          "external": true
+        }
+      ],
+      "format": "esm"
+    },
+    "src/sidebarProvider.ts": {
+      "bytes": 6327,
+      "imports": [
+        {
+          "path": "vscode",
+          "kind": "import-statement",
+          "external": true
+        },
+        {
+          "path": "./eventLog",
+          "kind": "import-statement",
+          "external": true
+        }
+      ],
+      "format": "esm"
+    },
+    "src/extension.ts": {
+      "bytes": 6325,
+      "imports": [
+        {
+          "path": "vscode",
+          "kind": "import-statement",
+          "external": true
+        },
+        {
+          "path": "src/broadcaster.ts",
+          "kind": "import-statement",
+          "original": "./broadcaster"
+        },
+        {
+          "path": "src/receiver.ts",
+          "kind": "import-statement",
+          "original": "./receiver"
+        },
+        {
+          "path": "src/eventLog.ts",
+          "kind": "import-statement",
+          "original": "./eventLog"
+        },
+        {
+          "path": "src/sidebarProvider.ts",
+          "kind": "import-statement",
+          "original": "./sidebarProvider"
+        }
+      ],
+      "format": "esm"
+    }
+  },
+  "outputs": {
+    "out/extension.js": {
+      "imports": [
+        {
+          "path": "bufferutil",
+          "kind": "require-call",
+          "external": true
+        },
+        {
+          "path": "zlib",
+          "kind": "require-call",
+          "external": true
+        },
+        {
+          "path": "buffer",
+          "kind": "require-call",
+          "external": true
+        },
+        {
+          "path": "utf-8-validate",
+          "kind": "require-call",
+          "external": true
+        },
+        {
+          "path": "stream",
+          "kind": "require-call",
+          "external": true
+        },
+        {
+          "path": "stream",
+          "kind": "require-call",
+          "external": true
+        },
+        {
+          "path": "crypto",
+          "kind": "require-call",
+          "external": true
+        },
+        {
+          "path": "events",
+          "kind": "require-call",
+          "external": true
+        },
+        {
+          "path": "https",
+          "kind": "require-call",
+          "external": true
+        },
+        {
+          "path": "http",
+          "kind": "require-call",
+          "external": true
+        },
+        {
+          "path": "net",
+          "kind": "require-call",
+          "external": true
+        },
+        {
+          "path": "tls",
+          "kind": "require-call",
+          "external": true
+        },
+        {
+          "path": "crypto",
+          "kind": "require-call",
+          "external": true
+        },
+        {
+          "path": "stream",
+          "kind": "require-call",
+          "external": true
+        },
+        {
+          "path": "url",
+          "kind": "require-call",
+          "external": true
+        },
+        {
+          "path": "stream",
+          "kind": "require-call",
+          "external": true
+        },
+        {
+          "path": "events",
+          "kind": "require-call",
+          "external": true
+        },
+        {
+          "path": "http",
+          "kind": "require-call",
+          "external": true
+        },
+        {
+          "path": "stream",
+          "kind": "require-call",
+          "external": true
+        },
+        {
+          "path": "crypto",
+          "kind": "require-call",
+          "external": true
+        },
+        {
+          "path": "os",
+          "kind": "require-call",
+          "external": true
+        },
+        {
+          "path": "events",
+          "kind": "require-call",
+          "external": true
+        },
+        {
+          "path": "buffer",
+          "kind": "require-call",
+          "external": true
+        },
+        {
+          "path": "dgram",
+          "kind": "require-call",
+          "external": true
+        },
+        {
+          "path": "events",
+          "kind": "require-call",
+          "external": true
+        },
+        {
+          "path": "os",
+          "kind": "require-call",
+          "external": true
+        },
+        {
+          "path": "events",
+          "kind": "require-call",
+          "external": true
+        },
+        {
+          "path": "vscode",
+          "kind": "require-call",
+          "external": true
+        },
+        {
+          "path": "vscode",
+          "kind": "require-call",
+          "external": true
+        },
+        {
+          "path": "fs",
+          "kind": "require-call",
+          "external": true
+        },
+        {
+          "path": "path",
+          "kind": "require-call",
+          "external": true
+        },
+        {
+          "path": "vscode",
+          "kind": "require-call",
+          "external": true
+        },
+        {
+          "path": "fs",
+          "kind": "require-call",
+          "external": true
+        },
+        {
+          "path": "path",
+          "kind": "require-call",
+          "external": true
+        },
+        {
+          "path": "vscode",
+          "kind": "require-call",
+          "external": true
+        },
+        {
+          "path": "vscode",
+          "kind": "require-call",
+          "external": true
+        }
+      ],
+      "exports": [],
+      "entryPoint": "src/extension.ts",
+      "inputs": {
+        "node_modules/ws/lib/constants.js": {
+          "bytesInOutput": 413
+        },
+        "node_modules/ws/lib/buffer-util.js": {
+          "bytesInOutput": 1027
+        },
+        "node_modules/ws/lib/limiter.js": {
+          "bytesInOutput": 357
+        },
+        "node_modules/ws/lib/permessage-deflate.js": {
+          "bytesInOutput": 5666
+        },
+        "node_modules/ws/lib/validation.js": {
+          "bytesInOutput": 1433
+        },
+        "node_modules/ws/lib/receiver.js": {
+          "bytesInOutput": 7324
+        },
+        "node_modules/ws/lib/sender.js": {
+          "bytesInOutput": 4999
+        },
+        "node_modules/ws/lib/event-target.js": {
+          "bytesInOutput": 2328
+        },
+        "node_modules/ws/lib/extension.js": {
+          "bytesInOutput": 2189
+        },
+        "node_modules/ws/lib/websocket.js": {
+          "bytesInOutput": 13300
+        },
+        "node_modules/ws/lib/stream.js": {
+          "bytesInOutput": 1312
+        },
+        "node_modules/ws/lib/subprotocol.js": {
+          "bytesInOutput": 707
+        },
+        "node_modules/ws/lib/websocket-server.js": {
+          "bytesInOutput": 5516
+        },
+        "node_modules/bonjour-service/dist/lib/utils/dns-equal.js": {
+          "bytesInOutput": 220
+        },
+        "node_modules/bonjour-service/dist/lib/dns-txt.js": {
+          "bytesInOutput": 524
+        },
+        "node_modules/bonjour-service/dist/lib/service-types.js": {
+          "bytesInOutput": 643
+        },
+        "node_modules/bonjour-service/dist/lib/service.js": {
+          "bytesInOutput": 1921
+        },
+        "node_modules/bonjour-service/dist/lib/registry.js": {
+          "bytesInOutput": 1979
+        },
+        "node_modules/dns-packet/types.js": {
+          "bytesInOutput": 2070
+        },
+        "node_modules/dns-packet/rcodes.js": {
+          "bytesInOutput": 900
+        },
+        "node_modules/dns-packet/opcodes.js": {
+          "bytesInOutput": 910
+        },
+        "node_modules/dns-packet/classes.js": {
+          "bytesInOutput": 326
+        },
+        "node_modules/dns-packet/optioncodes.js": {
+          "bytesInOutput": 954
+        },
+        "node_modules/@leichtgewicht/ip-codec/index.cjs": {
+          "bytesInOutput": 2188
+        },
+        "node_modules/dns-packet/index.js": {
+          "bytesInOutput": 23646
+        },
+        "node_modules/thunky/index.js": {
+          "bytesInOutput": 516
+        },
+        "node_modules/multicast-dns/index.js": {
+          "bytesInOutput": 2909
+        },
+        "node_modules/fast-deep-equal/es6/index.js": {
+          "bytesInOutput": 1168
+        },
+        "node_modules/bonjour-service/dist/lib/mdns-server.js": {
+          "bytesInOutput": 1660
+        },
+        "node_modules/bonjour-service/dist/lib/utils/filter-service.js": {
+          "bytesInOutput": 245
+        },
+        "node_modules/bonjour-service/dist/lib/utils/filter-txt.js": {
+          "bytesInOutput": 187
+        },
+        "node_modules/bonjour-service/dist/lib/utils/equal-txt.js": {
+          "bytesInOutput": 262
+        },
+        "node_modules/bonjour-service/dist/lib/browser.js": {
+          "bytesInOutput": 3234
+        },
+        "node_modules/bonjour-service/dist/index.js": {
+          "bytesInOutput": 829
+        },
+        "src/extension.ts": {
+          "bytesInOutput": 2716
+        },
+        "src/broadcaster.ts": {
+          "bytesInOutput": 7234
+        },
+        "node_modules/ws/wrapper.mjs": {
+          "bytesInOutput": 87
+        },
+        "src/sessionName.ts": {
+          "bytesInOutput": 194
+        },
+        "src/exclusions.ts": {
+          "bytesInOutput": 1355
+        },
+        "src/receiver.ts": {
+          "bytesInOutput": 10405
+        },
+        "node_modules/diff/lib/index.mjs": {
+          "bytesInOutput": 5009
+        },
+        "src/delta.ts": {
+          "bytesInOutput": 307
+        },
+        "src/eventLog.ts": {
+          "bytesInOutput": 424
+        },
+        "src/sidebarProvider.ts": {
+          "bytesInOutput": 2545
+        }
+      },
+      "bytes": 124829
+    }
+  }
+}

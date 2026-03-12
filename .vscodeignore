@@ -37,3 +37,6 @@ vscode.js
 test-live.js
 test-functional.js
 assets/icon-large.svg
+.gitignore
+meta.json
+bundle-analysis.html

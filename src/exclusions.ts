@@ -27,7 +27,7 @@ export const BINARY_EXTENSIONS: string[] = [
 /**
  * Returns true if the given relative file path should be excluded from sync.
  * Checks against excluded directories, binary extensions, excluded file patterns,
- * and optional extra patterns from .codesyncignore.
+ * and optional extra patterns from .simplesyncignore.
  */
 export function isExcluded(filePath: string, extraIgnores: string[] = []): boolean {
   const parts = filePath.split('/');
@@ -50,7 +50,7 @@ export function isExcluded(filePath: string, extraIgnores: string[] = []): boole
 
   if (EXCLUDED_FILES.some(matchesPattern)) return true;
 
-  // Check extra patterns from .codesyncignore
+  // Check extra patterns from .simplesyncignore
   if (extraIgnores.length > 0) {
     for (const pattern of extraIgnores) {
       const trimmed = pattern.trim();

@@ -55,8 +55,8 @@ export class Broadcaster {
 
   async start(): Promise<void> {
     try {
-      // Load .codesyncignore if present
-      this.loadCodesyncIgnore();
+      // Load .simplesyncignore if present
+      this.loadSimplesyncIgnore();
 
       // 1. Read initial files
       const { files, ignoredCount } = this.readFiles();
@@ -125,7 +125,7 @@ export class Broadcaster {
         this.bonjourInstance = new Bonjour();
         this.bonjourService = this.bonjourInstance.publish({
           name: this.sessionName,
-          type: 'codesync',
+          type: 'simplesync',
           port: port,
         });
         this.output.appendLine(`[Broadcaster] mDNS service published as "${this.sessionName}"`);
@@ -150,7 +150,7 @@ export class Broadcaster {
       const largestSize = largest ? `${(largest.content.length / 1024).toFixed(1)}KB` : '0KB';
       const largestName = largest ? largest.relativePath : '';
 
-      let msg = `● CodeSync broadcasting as ${this.sessionName} on port ${port}\n`;
+      let msg = `● SimpleSync broadcasting as ${this.sessionName} on port ${port}\n`;
       msg += `  ${files.length} files synced`;
       if (largest) msg += ` | Largest: ${largestName} (${largestSize})`;
       if (ignoredCount > 0) msg += ` | ${ignoredCount} ignored`;
@@ -158,20 +158,20 @@ export class Broadcaster {
       vscode.window.showInformationMessage(msg);
     } catch (err) {
       this.output.appendLine(`[Broadcaster] Failed to start: ${err}`);
-      vscode.window.showErrorMessage(`CodeSync: Failed to start broadcasting. ${err}`);
+      vscode.window.showErrorMessage(`SimpleSync: Failed to start broadcasting. ${err}`);
       this.updateStatusBar(ConnectionState.Error);
     }
   }
 
-  private loadCodesyncIgnore(): void {
-    const ignoreFilePath = path.join(this.rootPath, '.codesyncignore');
+  private loadSimplesyncIgnore(): void {
+    const ignoreFilePath = path.join(this.rootPath, '.simplesyncignore');
     if (fs.existsSync(ignoreFilePath)) {
       try {
         const lines = fs.readFileSync(ignoreFilePath, 'utf-8').split('\n');
         this.extraIgnores = lines.filter(l => l.trim() && !l.startsWith('#'));
-        this.output.appendLine(`[Broadcaster] Loaded ${this.extraIgnores.length} patterns from .codesyncignore`);
+        this.output.appendLine(`[Broadcaster] Loaded ${this.extraIgnores.length} patterns from .simplesyncignore`);
       } catch (err) {
-        this.output.appendLine(`[Broadcaster] Failed to read .codesyncignore: ${err}`);
+        this.output.appendLine(`[Broadcaster] Failed to read .simplesyncignore: ${err}`);
       }
     }
   }
@@ -313,7 +313,7 @@ export class Broadcaster {
     this.output.appendLine(`[Broadcaster] Push-back: ${written}/${files.length} files written`);
     this.eventLog.add('push', `Push-back received`, `${written} file(s)`);
     vscode.window.showInformationMessage(
-      `✓ CodeSync: ${written} file(s) pushed back from receiver.`
+      `✓ SimpleSync: ${written} file(s) pushed back from receiver.`
     );
   }
 
@@ -324,15 +324,15 @@ export class Broadcaster {
     switch (state) {
       case ConnectionState.Broadcasting:
         this.statusBar.text = count > 0
-          ? `$(radio-tower) CodeSync: ${this.sessionName} — ${count} connected`
-          : `$(radio-tower) CodeSync: ${this.sessionName}`;
+          ? `$(radio-tower) SimpleSync: ${this.sessionName} — ${count} connected`
+          : `$(radio-tower) SimpleSync: ${this.sessionName}`;
         this.statusBar.color = count > 0 ? '#16A34A' : undefined;
-        this.statusBar.command = 'codesync.stop';
+        this.statusBar.command = 'simplesync.stop';
         break;
       case ConnectionState.Error:
-        this.statusBar.text = `$(error) CodeSync: Error`;
+        this.statusBar.text = `$(error) SimpleSync: Error`;
         this.statusBar.color = '#DC2626';
-        this.statusBar.command = 'codesync.stop';
+        this.statusBar.command = 'simplesync.stop';
         break;
       default:
         this.statusBar.text = '';
@@ -385,6 +385,6 @@ export class Broadcaster {
     this.statusBar.hide();
     this.state = ConnectionState.Idle;
     this.output.appendLine(`[Broadcaster] Session ${this.sessionName} stopped`);
-    vscode.window.showInformationMessage(`CodeSync: Session ${this.sessionName} stopped.`);
+    vscode.window.showInformationMessage(`SimpleSync: Session ${this.sessionName} stopped.`);
   }
 }

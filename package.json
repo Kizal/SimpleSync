@@ -1,13 +1,13 @@
 {
-  "name": "codesync",
-  "displayName": "CodeSync",
+  "name": "simplesync",
+  "displayName": "SimpleSync",
   "description": "Real-time LAN code sync between VS Code, Cursor, and Windsurf. No internet required.",
   "version": "0.2.0",
   "publisher": "sanket-jivtode",
   "icon": "assets/icon.png",
   "repository": {
     "type": "git",
-    "url": "https://github.com/Kizal/CodeSync.git"
+    "url": "https://github.com/Kizal/SimpleSync.git"
   },
   "engines": {
     "vscode": "^1.74.0"
@@ -31,63 +31,63 @@
   "contributes": {
     "commands": [
       {
-        "command": "codesync.broadcast",
+        "command": "simplesync.broadcast",
         "title": "Start Broadcasting",
-        "category": "CodeSync"
+        "category": "SimpleSync"
       },
       {
-        "command": "codesync.connect",
+        "command": "simplesync.connect",
         "title": "Connect to Session",
-        "category": "CodeSync"
+        "category": "SimpleSync"
       },
       {
-        "command": "codesync.stop",
+        "command": "simplesync.stop",
         "title": "Stop Broadcasting",
-        "category": "CodeSync"
+        "category": "SimpleSync"
       },
       {
-        "command": "codesync.pushBack",
+        "command": "simplesync.pushBack",
         "title": "Push Changes Back",
-        "category": "CodeSync"
+        "category": "SimpleSync"
       },
       {
-        "command": "codesync.connectManual",
+        "command": "simplesync.connectManual",
         "title": "Connect Manually (IP:Port)",
-        "category": "CodeSync"
+        "category": "SimpleSync"
       },
       {
-        "command": "codesync.disconnect",
+        "command": "simplesync.disconnect",
         "title": "Disconnect",
-        "category": "CodeSync"
+        "category": "SimpleSync"
       }
     ],
     "menus": {
       "explorer/context": [
         {
-          "command": "codesync.broadcast",
+          "command": "simplesync.broadcast",
           "group": "navigation",
           "when": "explorerViewletVisible"
         },
         {
-          "command": "codesync.pushBack",
+          "command": "simplesync.pushBack",
           "group": "navigation",
-          "when": "codesync.isReceiver"
+          "when": "simplesync.isReceiver"
         }
       ]
     },
     "viewsContainers": {
       "activitybar": [
         {
-          "id": "codesync",
-          "title": "CodeSync",
+          "id": "simplesync",
+          "title": "SimpleSync",
           "icon": "assets/sidebar-icon.svg"
         }
       ]
     },
     "views": {
-      "codesync": [
+      "simplesync": [
         {
-          "id": "codesyncPeers",
+          "id": "simplesyncPeers",
           "name": "Peers"
         }
       ]
