@@ -1,0 +1,25 @@
+node_modules/
+out/
+*.vsix
+.vscode-test/
+__pycache__/
+dest/
+simulate-peer-workspace/
+
+# Build artifacts & scripts
+build_vsix.js
+build.log
+listen-broadcast.js
+simulate-peer.js
+test-all.js
+test-connect.js
+test-exclusions.js
+test.js
+codesync.py
+pyproject.toml
+sync.yml
+
+# Internal planning docs
+PROMPT.md
+PROMPT_V2.md
+SPEC.md
