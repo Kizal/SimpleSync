@@ -1,5 +1,8 @@
 # Changelog
 
+## 0.2.3
+- Republish with clean git history.
+
 ## 0.2.2
 - Added 5-second connection timeout — no more hanging on wrong IPs.
 - Graceful shutdown: broadcaster notifies receivers when session ends, receiver shows "Session ended" instead of retrying 3 times.

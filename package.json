@@ -2,7 +2,7 @@
   "name": "simplesync",
   "displayName": "SimpleSync",
   "description": "Real-time LAN code sync between VS Code, Cursor, and Windsurf. No internet required.",
-  "version": "0.2.2",
+  "version": "0.2.3",
   "publisher": "sanket-jivtode",
   "icon": "assets/icon.png",
   "repository": {
