@@ -33,6 +33,12 @@ export interface PushPayload {
   files: FileEntry[];
 }
 
+/** Broadcaster tells receivers the session is ending gracefully. */
+export interface ShutdownPayload {
+  type: 'shutdown';
+  sessionName: string;
+}
+
 /** A single file with its path, content, and inferred language. */
 export interface FileEntry {
   relativePath: string;  // e.g. "src/components/Header.tsx"
@@ -41,4 +47,4 @@ export interface FileEntry {
 }
 
 /** Union of all WebSocket message types. */
-export type WsMessage = InitialPayload | DeltaPayload | PushPayload;
+export type WsMessage = InitialPayload | DeltaPayload | PushPayload | ShutdownPayload;

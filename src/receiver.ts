@@ -9,6 +9,8 @@ import { calculateDelta, formatDelta } from './delta';
 import { EventLog } from './eventLog';
 import { diff_match_patch } from 'diff-match-patch';
 
+const CONNECTION_TIMEOUT_MS = 5000;
+
 interface Session {
   name: string;
   host: string;
@@ -26,15 +28,12 @@ export class Receiver {
   private isAlive = true;
   private heartbeatTimer: NodeJS.Timeout | null = null;
   private disconnecting = false;
+  private gracefulShutdown = false;
+  private connectionTimer: NodeJS.Timeout | null = null;
   private deltaQueue: { relativePath: string, content: string, isPatch?: boolean }[] = [];
 
-  /** Stores the last content received from the broadcaster, keyed by relativePath */
   private previousContent = new Map<string, string>();
-
-  /** Timer for clearing the delta status bar message */
   private deltaStatusTimer: ReturnType<typeof setTimeout> | null = null;
-
-  /** Tracks files currently showing a conflict prompt to avoid duplicate dialogs */
   private pendingConflicts = new Set<string>();
   private eventLog: EventLog;
   private syncTimers = new Map<string, ReturnType<typeof setTimeout>>();
@@ -132,13 +131,33 @@ export class Receiver {
     this.connectedSession = session;
     this.reconnectAttempts = 0;
     this.disconnecting = false;
+    this.gracefulShutdown = false;
+    this.deltaQueue = [];
     this.updateStatusBar(ConnectionState.Connecting);
     this.output.appendLine(`[Receiver] Connecting to ${session.name} at ${session.host}:${session.port}...`);
 
     try {
       this.ws = new WebSocket(`ws://${session.host}:${session.port}`);
 
+      // Connection timeout — abort if no open event within 5s
+      this.connectionTimer = setTimeout(() => {
+        if (this.ws && this.ws.readyState !== WebSocket.OPEN) {
+          this.output.appendLine(`[Receiver] Connection timed out after ${CONNECTION_TIMEOUT_MS / 1000}s`);
+          this.ws.terminate();
+          this.updateStatusBar(ConnectionState.Error);
+          this.eventLog.add('error', `Connection timed out`, `${session.host}:${session.port}`);
+          vscode.window.showErrorMessage(
+            `SimpleSync: Connection to ${session.host}:${session.port} timed out. Check the IP and firewall settings.`
+          );
+        }
+      }, CONNECTION_TIMEOUT_MS);
+
       this.ws.on('open', () => {
+        // Clear timeout — we connected successfully
+        if (this.connectionTimer) {
+          clearTimeout(this.connectionTimer);
+          this.connectionTimer = null;
+        }
         this.output.appendLine(`[Receiver] Connected to ${session.name}`);
         this.reconnectAttempts = 0;
         this.disconnecting = false;
@@ -172,6 +191,10 @@ export class Receiver {
         this.handleDisconnect(session);
       });
     } catch (err) {
+      if (this.connectionTimer) {
+        clearTimeout(this.connectionTimer);
+        this.connectionTimer = null;
+      }
       this.output.appendLine(`[Receiver] Failed to connect: ${err}`);
       this.updateStatusBar(ConnectionState.Error);
       vscode.window.showErrorMessage(`SimpleSync: Connection failed. ${err}`);
@@ -191,9 +214,13 @@ export class Receiver {
   }
 
   private handleDisconnect(session: Session): void {
-    // Guard against double-fire from both close + error events
     if (this.disconnecting) return;
     this.disconnecting = true;
+
+    if (this.connectionTimer) {
+      clearTimeout(this.connectionTimer);
+      this.connectionTimer = null;
+    }
 
     if (this.heartbeatTimer) {
       clearInterval(this.heartbeatTimer);
@@ -202,13 +229,21 @@ export class Receiver {
     this.output.appendLine(`[Receiver] Connection lost/closed`);
     this.updateStatusBar(ConnectionState.Error);
     vscode.commands.executeCommand('setContext', 'simplesync.isReceiver', false);
+
+    // Don't reconnect if the broadcaster shut down gracefully
+    if (this.gracefulShutdown) {
+      this.output.appendLine(`[Receiver] Session ended by broadcaster, skipping reconnect`);
+      return;
+    }
+
     this.attemptReconnect(session);
   }
 
-  private handleMessage(msg: WsMessage): void {
+  private async handleMessage(msg: WsMessage): Promise<void> {
     this.output.appendLine(`[Receiver] Message received: type=${msg.type}`);
+
     if (msg.type === 'initial') {
-      this.writeFiles(msg.sessionName, msg.files);
+      await this.writeFiles(msg.sessionName, msg.files);
       while (this.deltaQueue.length > 0) {
         const delta = this.deltaQueue.shift();
         if (delta) {
@@ -222,10 +257,19 @@ export class Receiver {
         return;
       }
       this.applyDelta(msg.filePath, msg.content, msg.isPatch);
+    } else if (msg.type === 'shutdown') {
+      this.gracefulShutdown = true;
+      this.output.appendLine(`[Receiver] Broadcaster ended session: ${msg.sessionName}`);
+      this.eventLog.add('disconnect', `Session ended: ${msg.sessionName}`);
+      this.updateStatusBar(ConnectionState.Error);
+      vscode.commands.executeCommand('setContext', 'simplesync.isReceiver', false);
+      vscode.window.showInformationMessage(
+        `SimpleSync: Session "${msg.sessionName}" ended by the broadcaster.`
+      );
     }
   }
 
-  private writeFiles(sessionName: string, files: FileEntry[]): void {
+  private async writeFiles(sessionName: string, files: FileEntry[]): Promise<void> {
     const workspaceRoot = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
     if (!workspaceRoot) {
       vscode.window.showErrorMessage('SimpleSync: No workspace folder open. Please open a folder first.');
@@ -235,42 +279,61 @@ export class Receiver {
     const targetDir = path.join(workspaceRoot, `simplesync-${sessionName}`);
     this.receivedRoot = targetDir;
 
-    let written = 0;
-    let largest = { name: '', size: 0 };
+    // Clear previous content for clean state (important on reconnect)
+    this.previousContent.clear();
 
-    for (const file of files) {
-      try {
-        const fullPath = path.join(targetDir, file.relativePath);
-        fs.mkdirSync(path.dirname(fullPath), { recursive: true });
-        fs.writeFileSync(fullPath, file.content, 'utf-8');
-        written++;
+    await vscode.window.withProgress({
+      location: vscode.ProgressLocation.Notification,
+      title: `SimpleSync: Receiving files from ${sessionName}`,
+      cancellable: false,
+    }, async (progress) => {
+      let written = 0;
+      let largest = { name: '', size: 0 };
+      const total = files.length;
 
-        this.previousContent.set(file.relativePath, file.content);
+      for (let i = 0; i < files.length; i++) {
+        const file = files[i];
+        try {
+          const fullPath = path.join(targetDir, file.relativePath);
+          fs.mkdirSync(path.dirname(fullPath), { recursive: true });
+          fs.writeFileSync(fullPath, file.content, 'utf-8');
+          written++;
 
-        if (file.content.length > largest.size) {
-          largest = { name: file.relativePath, size: file.content.length };
+          this.previousContent.set(file.relativePath, file.content);
+
+          if (file.content.length > largest.size) {
+            largest = { name: file.relativePath, size: file.content.length };
+          }
+        } catch (err) {
+          this.output.appendLine(`[Receiver] Error writing ${file.relativePath}: ${err}`);
         }
-      } catch (err) {
-        this.output.appendLine(`[Receiver] Error writing ${file.relativePath}: ${err}`);
+
+        // Update progress every 10 files or on last file
+        if ((i + 1) % 10 === 0 || i === total - 1) {
+          progress.report({
+            message: `${written}/${total} files`,
+            increment: (10 / total) * 100,
+          });
+        }
       }
-    }
 
-    if (files.length > 0) {
-      const firstFile = path.join(targetDir, files[0].relativePath);
-      try {
-        vscode.window.showTextDocument(vscode.Uri.file(firstFile));
-      } catch (err) {
-        this.output.appendLine(`[Receiver] Could not open first file: ${err}`);
+      if (files.length > 0) {
+        const firstFile = path.join(targetDir, files[0].relativePath);
+        try {
+          vscode.window.showTextDocument(vscode.Uri.file(firstFile));
+        } catch (err) {
+          this.output.appendLine(`[Receiver] Could not open first file: ${err}`);
+        }
       }
-    }
 
-    const largestSize = `${(largest.size / 1024).toFixed(1)}KB`;
-    let msg = `SimpleSync: ${written} files received from ${sessionName}`;
-    if (largest.name) msg += ` | Largest: ${largest.name} (${largestSize})`;
+      const largestSize = `${(largest.size / 1024).toFixed(1)}KB`;
+      let msg = `SimpleSync: ${written} files received from ${sessionName}`;
+      if (largest.name) msg += ` | Largest: ${largest.name} (${largestSize})`;
 
-    vscode.window.showInformationMessage(msg);
-    this.output.appendLine(`[Receiver] ${written} files written to ${targetDir}`);
-    this.eventLog.add('file-sync', `Initial sync: ${written} files`);
+      vscode.window.showInformationMessage(msg);
+      this.output.appendLine(`[Receiver] ${written} files written to ${targetDir}`);
+      this.eventLog.add('file-sync', `Initial sync: ${written} files`);
+    });
   }
 
   private applyDelta(relativePath: string, content: string, isPatch?: boolean): void {
@@ -546,6 +609,7 @@ export class Receiver {
     }
     this.reconnectAttempts++;
     this.output.appendLine(`[Receiver] Reconnect attempt ${this.reconnectAttempts}/3...`);
+    this.updateStatusBar(ConnectionState.Connecting);
     await new Promise(r => setTimeout(r, 2000));
     this.connect(session);
   }
@@ -589,8 +653,13 @@ export class Receiver {
 
   disconnect(): void {
     this.disconnecting = false;
+    this.gracefulShutdown = false;
 
-    // Clear sync timers
+    if (this.connectionTimer) {
+      clearTimeout(this.connectionTimer);
+      this.connectionTimer = null;
+    }
+
     for (const timer of this.syncTimers.values()) {
       clearTimeout(timer);
     }
@@ -628,7 +697,6 @@ export class Receiver {
     if (!this.receivedRoot) return;
 
     const filePath = document.uri.fsPath;
-    // Only sync files inside the received directory
     if (!filePath.startsWith(this.receivedRoot)) return;
 
     const relativePath = path.relative(this.receivedRoot, filePath).replace(/\\/g, '/');

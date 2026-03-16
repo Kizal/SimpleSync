@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.2.2
+- Added 5-second connection timeout — no more hanging on wrong IPs.
+- Graceful shutdown: broadcaster notifies receivers when session ends, receiver shows "Session ended" instead of retrying 3 times.
+- Progress indicator: receiving files now shows a notification progress bar with file count.
+- Auto-sync on reconnect: receiver clears stale state and gets a fresh file snapshot after reconnecting.
+- Reconnect state now shows "Connecting..." in the status bar during retry attempts.
+
 ## 0.2.1
 - Fixed live typing sync sending wrong message type, causing notification spam on broadcaster.
 - Fixed receiver live edits sending wrong file paths (included session folder prefix).

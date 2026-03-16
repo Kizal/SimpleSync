@@ -13,6 +13,7 @@ import {
   FileEntry,
   InitialPayload,
   DeltaPayload,
+  ShutdownPayload,
 } from './types';
 import { EventLog } from './eventLog';
 import { diff_match_patch } from 'diff-match-patch';
@@ -540,6 +541,22 @@ export class Broadcaster {
         this.bonjourInstance.destroy();
       } catch (err) {
         this.output.appendLine(`[Broadcaster] Error destroying bonjour: ${err}`);
+      }
+    }
+
+    // Notify all clients the session is ending
+    const shutdownMsg: ShutdownPayload = {
+      type: 'shutdown',
+      sessionName: this.sessionName,
+    };
+    const shutdownJson = JSON.stringify(shutdownMsg);
+    for (const [ws] of this.connectedClients) {
+      if (ws.readyState === WebSocket.OPEN) {
+        try {
+          ws.send(shutdownJson);
+        } catch {
+          // Ignore send errors during shutdown
+        }
       }
     }
 
