@@ -70,11 +70,11 @@ export function activate(context: vscode.ExtensionContext): void {
         );
         await broadcaster.start();
 
-        // Update sidebar — use the session name and detected port from the broadcaster
-        const wss = (broadcaster as any).wss;
-        const addr = wss?.address?.();
-        const port = typeof addr === 'object' && addr !== null ? addr.port : 0;
-        sidebarProvider.setSession('broadcasting', broadcaster.getSessionName(), `port ${port}`);
+        // Use the connection details straight from the broadcaster
+        const port = broadcaster.getPort();
+        const mainIp = broadcaster.getLocalIp();
+
+        sidebarProvider.setSession('broadcasting', broadcaster.getSessionName(), `${mainIp}:${port}`);
       } catch (err) {
         output.appendLine(`[SimpleSync] Error starting broadcast: ${err}`);
         vscode.window.showErrorMessage(`SimpleSync: Failed to start broadcasting. ${err}`);
@@ -175,6 +175,10 @@ export function activate(context: vscode.ExtensionContext): void {
       }
     }),
 
+    vscode.workspace.onDidChangeTextDocument((event) => {
+      broadcaster?.onDocumentChanged(event.document);
+      receiver?.onDocumentChanged(event.document);
+    }),
   );
 
   output.appendLine('[SimpleSync] Extension activated');

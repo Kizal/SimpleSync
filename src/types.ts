@@ -22,7 +22,8 @@ export interface InitialPayload {
 export interface DeltaPayload {
   type: 'delta';
   filePath: string;    // relative path from broadcast root e.g. "src/components/Header.tsx"
-  content: string;     // full file content as UTF-8 string
+  content: string;     // full file content, or patch text
+  isPatch?: boolean;   // true if content is a diff-match-patch patch text
   timestamp: number;   // unix ms
 }
 

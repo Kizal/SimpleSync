@@ -1,5 +1,3 @@
-import * as path from 'path';
-
 // ─── Hardcoded Exclusion Lists ──────────────────────────────────────────────
 
 export const EXCLUDED_DIRS: string[] = [

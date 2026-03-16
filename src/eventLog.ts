@@ -9,6 +9,7 @@ export type EventKind =
   | 'connect'
   | 'disconnect'
   | 'delete'
+  | 'delta'
   | 'error';
 
 export interface LogEntry {
@@ -20,7 +21,7 @@ export interface LogEntry {
 
 // ─── EventLog ───────────────────────────────────────────────────────────────
 
-const MAX_ENTRIES = 20;
+const MAX_ENTRIES = 50;
 
 /**
  * Rolling event log shared by broadcaster and receiver.

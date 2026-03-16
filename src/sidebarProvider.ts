@@ -38,6 +38,7 @@ const EVENT_ICONS: Record<EventKind, string> = {
   'connect':    'plug',
   'disconnect': 'debug-disconnect',
   'delete':     'trash',
+  'delta':      'diff',
   'error':      'error',
 };
 

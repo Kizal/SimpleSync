@@ -4,6 +4,7 @@ import Bonjour, { Service } from 'bonjour-service';
 import * as fs from 'fs';
 import * as path from 'path';
 import * as http from 'http';
+import * as os from 'os';
 import { generateSessionName } from './sessionName';
 import { isExcluded, inferLanguage, MAX_FILE_SIZE_BYTES } from './exclusions';
 import {
@@ -14,6 +15,7 @@ import {
   DeltaPayload,
 } from './types';
 import { EventLog } from './eventLog';
+import { diff_match_patch } from 'diff-match-patch';
 
 export class Broadcaster {
   private rootPath: string;
@@ -26,12 +28,14 @@ export class Broadcaster {
   private statusBar: vscode.StatusBarItem;
   private output: vscode.OutputChannel;
   private context: vscode.ExtensionContext;
-  private connectedClients = new Set<WebSocket>();
-  private peerIps = new Map<WebSocket, string>();
+  private connectedClients = new Map<WebSocket, { isAlive: boolean; ip: string }>();
+  private heartbeatTimer: NodeJS.Timeout | null = null;
   private onPeersChange?: (peers: string[]) => void;
   private extraIgnores: string[] = [];
   private state: ConnectionState = ConnectionState.Idle;
   private eventLog: EventLog;
+  private fileCache = new Map<string, string>();
+  private typingTimers = new Map<string, NodeJS.Timeout>();
 
   constructor(
     rootPath: string,
@@ -59,7 +63,7 @@ export class Broadcaster {
       this.loadSimplesyncIgnore();
 
       // 1. Read initial files
-      const { files, ignoredCount } = this.readFiles();
+      const { files, ignoredCount } = await this.readFilesAsync();
       this.output.appendLine(`[Broadcaster] Read ${files.length} files (${ignoredCount} ignored) from ${this.rootPath}`);
 
       // 2. Start WebSocket server on OS-assigned port
@@ -68,18 +72,26 @@ export class Broadcaster {
       const port = typeof address === 'object' && address !== null ? address.port : 0;
       this.output.appendLine(`[Broadcaster] WebSocket server started on port ${port}`);
 
+      // Start heartbeat timer
+      this.startHeartbeat();
+
       // 3. Handle new client connections
-      this.wss.on('connection', (ws: WebSocket, req: http.IncomingMessage) => {
-        this.connectedClients.add(ws);
+      this.wss.on('connection', async (ws: WebSocket, req: http.IncomingMessage) => {
         const peerIp = req.socket.remoteAddress ?? 'unknown';
-        this.peerIps.set(ws, peerIp);
+        this.connectedClients.set(ws, { isAlive: true, ip: peerIp });
+
         this.eventLog.add('connect', `Peer connected: ${peerIp}`);
         this.onPeersChange?.(this.getConnectedPeers());
         this.output.appendLine(`[Broadcaster] Client connected (${this.connectedClients.size} total)`);
         this.updateStatusBar(ConnectionState.Broadcasting);
 
+        ws.on('pong', () => {
+          const client = this.connectedClients.get(ws);
+          if (client) client.isAlive = true;
+        });
+
         // Send full snapshot immediately
-        const { files: currentFiles } = this.readFiles();
+        const { files: currentFiles } = await this.readFilesAsync();
         const payload: InitialPayload = {
           type: 'initial',
           sessionName: this.sessionName,
@@ -93,12 +105,14 @@ export class Broadcaster {
           this.output.appendLine(`[Broadcaster] Error sending initial payload: ${err}`);
         }
 
-        // Handle push-back from receiver
+        // Handle push-back and live deltas from receiver
         ws.on('message', (data: WebSocket.RawData) => {
           try {
             const msg: WsMessage = JSON.parse(data.toString());
             if (msg.type === 'push') {
               this.handlePushBack(msg.files);
+            } else if (msg.type === 'delta') {
+              this.handleDelta(msg);
             }
           } catch (err) {
             this.output.appendLine(`[Broadcaster] Error parsing message: ${err}`);
@@ -106,17 +120,12 @@ export class Broadcaster {
         });
 
         ws.on('close', () => {
-          const closedIp = this.peerIps.get(ws) ?? 'unknown';
-          this.connectedClients.delete(ws);
-          this.peerIps.delete(ws);
-          this.eventLog.add('disconnect', `Peer disconnected: ${closedIp}`);
-          this.onPeersChange?.(this.getConnectedPeers());
-          this.output.appendLine(`[Broadcaster] Client disconnected (${this.connectedClients.size} remaining)`);
-          this.updateStatusBar(ConnectionState.Broadcasting);
+          this.handleClientDisconnect(ws);
         });
 
         ws.on('error', (err: Error) => {
-          this.output.appendLine(`[Broadcaster] Client error: ${err.message}`);
+          this.output.appendLine(`[Broadcaster] Client error from ${peerIp}: ${err.message}`);
+          this.handleClientDisconnect(ws);
         });
       });
 
@@ -142,22 +151,33 @@ export class Broadcaster {
       fsw.onDidCreate(uri => this.onFileChange(uri));
       fsw.onDidDelete(uri => this.onFileDeleteUri(uri));
 
-      // 7. Update status bar
+      // 6. Update status bar
       this.updateStatusBar(ConnectionState.Broadcasting);
 
       // Build summary message
-      const largest = files.reduce((max, f) => f.content.length > max.content.length ? f : max, files[0]);
+      const largest = files.length > 0
+        ? files.reduce((max, f) => f.content.length > max.content.length ? f : max, files[0])
+        : null;
       const largestSize = largest ? `${(largest.content.length / 1024).toFixed(1)}KB` : '0KB';
       const largestName = largest ? largest.relativePath : '';
 
-      let msg = `● SimpleSync broadcasting as ${this.sessionName} on port ${port}\n`;
+      // Get local IP for notification
+      const ipPort = `${this.getLocalIp()}:${port}`;
+
+      let msg = `SimpleSync: ${this.sessionName} — ${ipPort}\n`;
       msg += `  ${files.length} files synced`;
       if (largest) msg += ` | Largest: ${largestName} (${largestSize})`;
       if (ignoredCount > 0) msg += ` | ${ignoredCount} ignored`;
 
-      vscode.window.showInformationMessage(msg);
-    } catch (err) {
-      this.output.appendLine(`[Broadcaster] Failed to start: ${err}`);
+      const copyBtn = 'Copy IP:Port';
+      vscode.window.showInformationMessage(msg, copyBtn).then(selection => {
+        if (selection === copyBtn) {
+          vscode.env.clipboard.writeText(ipPort);
+        }
+      });
+    } catch (err: any) {
+      this.output.appendLine(`[Broadcaster-Error] Failed to start: ${err}`);
+      this.eventLog.add('error', `Start failed: ${err.message}`);
       vscode.window.showErrorMessage(`SimpleSync: Failed to start broadcasting. ${err}`);
       this.updateStatusBar(ConnectionState.Error);
     }
@@ -176,84 +196,123 @@ export class Broadcaster {
     }
   }
 
-  private readFiles(): { files: FileEntry[]; ignoredCount: number } {
+  private async readFilesAsync(): Promise<{ files: FileEntry[]; ignoredCount: number }> {
     const files: FileEntry[] = [];
     let ignoredCount = 0;
 
-    const walkDir = (dir: string, root: string): void => {
-      let entries: fs.Dirent[];
-      try {
-        entries = fs.readdirSync(dir, { withFileTypes: true });
-      } catch {
-        return; // Skip unreadable directories
-      }
+    try {
+      const uris = await vscode.workspace.findFiles(
+        new vscode.RelativePattern(this.rootPath, '**/*')
+      );
 
-      for (const entry of entries) {
-        const fullPath = path.join(dir, entry.name);
-        const relativePath = path.relative(root, fullPath).replace(/\\/g, '/');
+      for (const uri of uris) {
+        const filePath = uri.fsPath;
+        if (!filePath.startsWith(this.rootPath)) continue;
+
+        const relativePath = path.relative(this.rootPath, filePath).replace(/\\/g, '/');
 
         if (isExcluded(relativePath, this.extraIgnores)) {
           ignoredCount++;
           continue;
         }
 
-        if (entry.isDirectory()) {
-          walkDir(fullPath, root);
-        } else if (entry.isFile()) {
-          try {
-            const stats = fs.statSync(fullPath);
-            if (stats.size > MAX_FILE_SIZE_BYTES) {
-              ignoredCount++;
-              continue;
-            }
-            const content = fs.readFileSync(fullPath, 'utf-8');
-            files.push({
-              relativePath,
-              content,
-              language: inferLanguage(relativePath),
-            });
-          } catch {
-            // Skip unreadable files silently
+        try {
+          const stats = await fs.promises.stat(filePath);
+          if (stats.size > MAX_FILE_SIZE_BYTES) {
             ignoredCount++;
+            continue;
           }
+
+          const content = await fs.promises.readFile(filePath, 'utf-8');
+          this.fileCache.set(relativePath, content);
+          files.push({
+            relativePath,
+            content,
+            language: inferLanguage(relativePath),
+          });
+        } catch {
+          ignoredCount++;
         }
       }
-    };
+    } catch (err) {
+      this.output.appendLine(`[Broadcaster] Error reading files: ${err}`);
+    }
 
-    walkDir(this.rootPath, this.rootPath);
     return { files, ignoredCount };
+  }
+
+  private startHeartbeat(): void {
+    this.heartbeatTimer = setInterval(() => {
+      this.connectedClients.forEach((client, ws) => {
+        if (!client.isAlive) {
+          this.output.appendLine(`[Broadcaster] Client ${client.ip} heartbeat failed. Closing connection.`);
+          return ws.terminate();
+        }
+        client.isAlive = false;
+        ws.ping();
+      });
+    }, 10000);
+  }
+
+  private handleClientDisconnect(ws: WebSocket): void {
+    const client = this.connectedClients.get(ws);
+    if (client) {
+      const closedIp = client.ip;
+      this.connectedClients.delete(ws);
+      this.eventLog.add('disconnect', `Peer disconnected: ${closedIp}`);
+      this.onPeersChange?.(this.getConnectedPeers());
+      this.output.appendLine(`[Broadcaster] Client disconnected (${this.connectedClients.size} remaining)`);
+      this.updateStatusBar(ConnectionState.Broadcasting);
+    }
   }
 
   private async onFileChange(uri: vscode.Uri): Promise<void> {
     const filePath = uri.fsPath;
     if (!filePath.startsWith(this.rootPath)) return;
 
+    try {
+      const stats = await fs.promises.stat(filePath);
+      if (stats.isDirectory()) return;
+      if (stats.size > MAX_FILE_SIZE_BYTES) return;
+
+      const content = await fs.promises.readFile(filePath, 'utf-8');
+      await this.processFileContent(filePath, content);
+    } catch (err) {
+      this.output.appendLine(`[Broadcaster] Error reading changed file: ${err}`);
+    }
+  }
+
+  private async processFileContent(filePath: string, content: string): Promise<void> {
     const relativePath = path.relative(this.rootPath, filePath).replace(/\\/g, '/');
+
     if (isExcluded(relativePath, this.extraIgnores)) return;
     if (this.connectedClients.size === 0) return;
 
     try {
-      const stats = await fs.promises.stat(filePath);
-      if (stats.isDirectory()) return;
-      if (stats.size > MAX_FILE_SIZE_BYTES) {
-        this.output.appendLine(`[Broadcaster] File too large to sync: ${relativePath}`);
-        return;
-      }
-      
-      const content = await fs.promises.readFile(filePath, 'utf-8');
+      const prevContent = this.fileCache.get(relativePath) || '';
+      if (prevContent === content) return;
+
+      const dmp = new diff_match_patch();
+      const diffs = dmp.diff_main(prevContent, content);
+      dmp.diff_cleanupSemantic(diffs);
+      const patches = dmp.patch_make(prevContent, diffs);
+      const patchText = dmp.patch_toText(patches);
+
+      this.fileCache.set(relativePath, content);
 
       const payload: DeltaPayload = {
         type: 'delta',
         filePath: relativePath,
-        content: content,
+        content: patchText,
+        isPatch: true,
         timestamp: Date.now(),
       };
 
       const message = JSON.stringify(payload);
-      for (const client of this.connectedClients) {
-        if (client.readyState === WebSocket.OPEN) {
+      for (const [ws] of this.connectedClients) {
+        if (ws.readyState === WebSocket.OPEN) {
           try {
-            client.send(message);
+            ws.send(message);
           } catch (err) {
             this.output.appendLine(`[Broadcaster] Error sending delta: ${err}`);
           }
@@ -263,7 +322,7 @@ export class Broadcaster {
       this.output.appendLine(`[Broadcaster] Delta sent: ${relativePath}`);
       this.eventLog.add('file-sync', relativePath, 'sent');
     } catch (err) {
-      this.output.appendLine(`[Broadcaster] Error reading changed file ${relativePath}: ${err}`);
+      this.output.appendLine(`[Broadcaster] Error processing delta for ${relativePath}: ${err}`);
     }
   }
 
@@ -275,19 +334,20 @@ export class Broadcaster {
     if (isExcluded(relativePath, this.extraIgnores)) return;
     if (this.connectedClients.size === 0) return;
 
-    // Send delta with null-like content to signal deletion
+    this.fileCache.delete(relativePath);
+
     const payload: DeltaPayload = {
       type: 'delta',
       filePath: relativePath,
-      content: '', // empty content indicates deletion
+      content: '',
       timestamp: Date.now(),
     };
 
     const message = JSON.stringify(payload);
-    for (const client of this.connectedClients) {
-      if (client.readyState === WebSocket.OPEN) {
+    for (const [ws] of this.connectedClients) {
+      if (ws.readyState === WebSocket.OPEN) {
         try {
-          client.send(message);
+          ws.send(message);
         } catch (err) {
           this.output.appendLine(`[Broadcaster] Error sending delete delta: ${err}`);
         }
@@ -299,12 +359,15 @@ export class Broadcaster {
   }
 
   private handlePushBack(files: FileEntry[]): void {
+    this.output.appendLine(`[Broadcaster] handlePushBack received ${files.length} files.`);
     let written = 0;
     for (const file of files) {
       try {
         const fullPath = path.join(this.rootPath, file.relativePath);
+        this.output.appendLine(`[Broadcaster] Writing pushed file to: ${fullPath}`);
         fs.mkdirSync(path.dirname(fullPath), { recursive: true });
         fs.writeFileSync(fullPath, file.content, 'utf-8');
+        this.fileCache.set(file.relativePath, file.content);
         written++;
       } catch (err) {
         this.output.appendLine(`[Broadcaster] Error writing pushed file ${file.relativePath}: ${err}`);
@@ -313,29 +376,73 @@ export class Broadcaster {
     this.output.appendLine(`[Broadcaster] Push-back: ${written}/${files.length} files written`);
     this.eventLog.add('push', `Push-back received`, `${written} file(s)`);
     vscode.window.showInformationMessage(
-      `✓ SimpleSync: ${written} file(s) pushed back from receiver.`
+      `SimpleSync: ${written} file(s) pushed back from receiver.`
     );
+  }
+
+  private async handleDelta(payload: DeltaPayload): Promise<void> {
+    const { filePath, content, isPatch } = payload;
+    const fullPath = path.join(this.rootPath, filePath);
+
+    try {
+      let newContent = content;
+
+      if (isPatch) {
+        const currentContent = this.fileCache.get(filePath) || "";
+        const dmp = new diff_match_patch();
+        const patches = dmp.patch_fromText(content);
+        const [appliedContent, results] = dmp.patch_apply(patches, currentContent);
+
+        if (results.some(r => !r)) {
+          this.output.appendLine(`[Broadcaster] Patch failed for ${filePath}, skipping`);
+          return;
+        }
+        newContent = appliedContent;
+      }
+
+      this.fileCache.set(filePath, newContent);
+
+      fs.mkdirSync(path.dirname(fullPath), { recursive: true });
+      fs.writeFileSync(fullPath, newContent, 'utf-8');
+
+      this.eventLog.add('delta', `Live update from receiver`, filePath);
+    } catch (err) {
+      this.output.appendLine(`[Broadcaster] Error applying live update for ${filePath}: ${err}`);
+    }
   }
 
   private updateStatusBar(state: ConnectionState): void {
     this.state = state;
     const count = this.connectedClients.size;
+    const address = this.wss?.address();
+    const port = typeof address === 'object' && address !== null ? address.port : '?';
+    const mainIp = this.getLocalIp();
 
     switch (state) {
       case ConnectionState.Broadcasting:
-        this.statusBar.text = count > 0
-          ? `$(radio-tower) SimpleSync: ${this.sessionName} — ${count} connected`
-          : `$(radio-tower) SimpleSync: ${this.sessionName}`;
-        this.statusBar.color = count > 0 ? '#16A34A' : undefined;
+        if (count > 0) {
+          this.statusBar.text = `$(radio-tower) ${this.sessionName} — ${count} peer${count > 1 ? 's' : ''}`;
+          this.statusBar.backgroundColor = undefined;
+          this.statusBar.color = '#16A34A';
+        } else {
+          this.statusBar.text = `$(radio-tower) ${this.sessionName} | ${mainIp}:${port}`;
+          this.statusBar.backgroundColor = undefined;
+          this.statusBar.color = undefined;
+        }
+        this.statusBar.tooltip = `SimpleSync Broadcaster\nSession: ${this.sessionName}\nAddress: ${mainIp}:${port}\nConnected: ${count}`;
         this.statusBar.command = 'simplesync.stop';
         break;
       case ConnectionState.Error:
         this.statusBar.text = `$(error) SimpleSync: Error`;
-        this.statusBar.color = '#DC2626';
+        this.statusBar.backgroundColor = new vscode.ThemeColor('statusBarItem.errorBackground');
+        this.statusBar.color = undefined;
+        this.statusBar.tooltip = `SimpleSync: An error occurred. Check Output channel.`;
         this.statusBar.command = 'simplesync.stop';
         break;
       default:
         this.statusBar.text = '';
+        this.statusBar.backgroundColor = undefined;
+        this.statusBar.color = undefined;
         this.statusBar.command = undefined;
         break;
     }
@@ -343,15 +450,80 @@ export class Broadcaster {
     this.statusBar.show();
   }
 
+  public getLocalIp(): string {
+    const networkInterfaces = os.networkInterfaces();
+    let preferredIp: string | null = null;
+    let fallbackIp: string | null = null;
+
+    for (const [name, interfaces] of Object.entries(networkInterfaces)) {
+      if (!interfaces) continue;
+
+      const lowerName = name.toLowerCase();
+      if (lowerName.includes('vbox') || lowerName.includes('vmware') || lowerName.includes('docker') || lowerName.includes('wsl') || lowerName.includes('virtual') || lowerName.includes('loopback')) {
+        continue;
+      }
+
+      for (const details of interfaces) {
+        if (details.family === 'IPv4' && !details.internal) {
+          if (lowerName.includes('wi-fi') || lowerName.includes('eth') || lowerName.includes('en') || lowerName.includes('wlan')) {
+            if (!preferredIp) preferredIp = details.address;
+          } else {
+            if (!fallbackIp) fallbackIp = details.address;
+          }
+        }
+      }
+    }
+
+    return preferredIp || fallbackIp || '127.0.0.1';
+  }
+
+  public getPort(): number {
+    if (!this.wss) return 0;
+    const address = this.wss.address();
+    return typeof address === 'object' && address !== null ? address.port : 0;
+  }
+
   getConnectedPeers(): string[] {
-    return Array.from(this.peerIps.values());
+    return Array.from(this.connectedClients.values()).map(c => c.ip);
   }
 
   getSessionName(): string {
     return this.sessionName;
   }
 
+  public onDocumentChanged(document: vscode.TextDocument): void {
+    if (this.state !== ConnectionState.Broadcasting) return;
+
+    const filePath = document.uri.fsPath;
+    if (!filePath.startsWith(this.rootPath)) return;
+
+    const relativePath = path.relative(this.rootPath, filePath).replace(/\\/g, '/');
+    if (isExcluded(relativePath, this.extraIgnores)) return;
+
+    if (this.typingTimers.has(relativePath)) {
+      clearTimeout(this.typingTimers.get(relativePath)!);
+    }
+
+    const timer = setTimeout(() => {
+      this.typingTimers.delete(relativePath);
+      const content = document.getText();
+      this.processFileContent(filePath, content);
+    }, 1000);
+
+    this.typingTimers.set(relativePath, timer);
+  }
+
   async stop(): Promise<void> {
+    // Clear all pending typing timers
+    for (const timer of this.typingTimers.values()) {
+      clearTimeout(timer);
+    }
+    this.typingTimers.clear();
+
+    if (this.heartbeatTimer) {
+      clearInterval(this.heartbeatTimer);
+      this.heartbeatTimer = null;
+    }
     this.fileWatcher?.dispose();
     this.deleteWatcher?.dispose();
 
@@ -371,8 +543,7 @@ export class Broadcaster {
       }
     }
 
-    // Close all client connections
-    for (const client of this.connectedClients) {
+    for (const client of this.connectedClients.keys()) {
       try {
         client.close();
       } catch {

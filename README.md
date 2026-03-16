@@ -1,72 +1,129 @@
 # SimpleSync
 
-Real-time file synchronization between multiple VS Code instances on the same local network. No internet connection, accounts, or complex configuration required.
+Real-time file synchronization between VS Code, Cursor, and Windsurf instances on the same local network. No internet, no accounts, no configuration required.
 
 ## Why SimpleSync?
-SimpleSync is designed for developers who need to mirror their workspace across two machines (e.g., a desktop and a laptop) in real time without relying on cloud services or Git commits. It is ideal for pair programming, testing on different hardware, or maintaining a live secondary display of your code.
+
+SimpleSync is built for developers who need to mirror a workspace across two machines in real time — without cloud services or Git commits. Ideal for:
+
+- **Pair programming** across two desks
+- **Testing on different hardware** (desktop + laptop, Windows + Mac)
+- **Live secondary display** of your code on another screen
+- **Teaching and demos** where students follow along in real time
 
 ## Installation
 
 ### From Marketplace
-Search for "SimpleSync" in the VS Code Extensions view and click **Install**.
+
+Search for **"SimpleSync"** in the Extensions view (`Ctrl+Shift+X`) and click **Install**.
+
+[Install from Marketplace](https://marketplace.visualstudio.com/items?itemName=sanket-jivtode.simplesync)
 
 ### Manual VSIX Installation
-In environments where the Marketplace is blocked:
-1. Download the latest `simplesync-x.x.x.vsix` file.
-2. Open VS Code.
-3. Open the Extensions view (`Ctrl+Shift+X`).
-4. Click the "..." (Views and More Actions) menu in the top right.
-5. Select **Install from VSIX...** and choose the downloaded file.
 
-## Usage
+1. Download the latest `simplesync-x.x.x.vsix` from [Releases](https://github.com/Kizal/SimpleSync/releases).
+2. In VS Code, open the Extensions view.
+3. Click `...` > **Install from VSIX...** and select the file.
 
-### 1. Start Syncing
-*   **Broadcaster:** Open the folder you want to share. Right-click the folder in the Explorer or use the command `SimpleSync: Start Broadcasting`.
-*   **Receiver:** On the second machine, run `SimpleSync: Connect to Session`. Select the discovered session from the list.
+## Quick Start
 
-### 2. Pushing Changes Back
-If you are a Receiver and want to send your local changes back to the Broadcaster, right-click any file in the Explorer and select `SimpleSync: Push Changes Back`.
+### Machine A — Broadcast
+
+1. Open the folder you want to share.
+2. Right-click the folder in the Explorer > **SimpleSync: Start Broadcasting**.
+3. The status bar shows your session name and `IP:Port`. Share this with Machine B.
+
+### Machine B — Receive
+
+1. Open any folder (received files land in a subfolder here).
+2. Run **SimpleSync: Connect to Session** from the Command Palette.
+3. Select the discovered session, or enter the `IP:Port` manually if discovery fails.
+
+### Live Sync
+
+- Save a file on the broadcaster — it appears on the receiver within 1 second.
+- Type on either side — live deltas sync automatically with a 1-second debounce.
+- Delete a file on the broadcaster — it's removed on the receiver (with conflict check if locally modified).
+
+### Push Changes Back
+
+On the receiver, right-click in the Explorer > **SimpleSync: Push Changes Back** to send all local modifications back to the broadcaster.
 
 ## Commands
 
 | Command | Description |
 | :--- | :--- |
-| `SimpleSync: Start Broadcasting` | Starts a new session to share the current workspace. |
-| `SimpleSync: Connect to Session` | Searches for active broadcasts on the LAN and connects. |
-| `SimpleSync: Connect Manually (IP:Port)` | Connects to a broadcaster using a specific IP address and port. |
-| `SimpleSync: Stop Broadcasting` | Ends the current broadcasting session. |
-| `SimpleSync: Disconnect` | Disconnects from the current session (Receiver mode). |
-| `SimpleSync: Push Changes Back` | Sends all local modifications from the Receiver back to the Broadcaster. |
+| `SimpleSync: Start Broadcasting` | Start sharing the current workspace over LAN. |
+| `SimpleSync: Connect to Session` | Auto-discover and connect to a broadcaster. |
+| `SimpleSync: Connect Manually (IP:Port)` | Connect using a specific IP address and port. |
+| `SimpleSync: Stop Broadcasting` | End the current broadcasting session. |
+| `SimpleSync: Disconnect` | Disconnect from the current session (receiver). |
+| `SimpleSync: Push Changes Back` | Send all receiver modifications back to the broadcaster. |
 
 ## Sidebar Panel
-The SimpleSync panel in the Activity Bar provides real-time visibility:
-*   **Session:** Shows if you are Broadcasting or Receiving, the session name, and the connection address.
-*   **Peers:** Lists the IP addresses of all currently connected machines.
-*   **Activity Log:** A live feed of the last 20 events (files synced, conflicts detected, connections).
+
+The **SimpleSync** panel in the Activity Bar provides real-time visibility:
+
+- **Session** — Broadcasting or Receiving, session name, connection address.
+- **Peers** — IP addresses of all connected machines.
+- **Activity Log** — Live feed of the last 50 events: files synced, conflicts, connections, errors.
 
 ## Conflict Resolution
-SimpleSync prioritizes the Broadcaster as the source of truth. If a Receiver modifies a file locally that the Broadcaster then updates, sync will pause for that file and prompt the user:
-*   **Keep Mine:** Ignore the incoming change and keep the local version.
-*   **Accept Incoming:** Overwrite the local version with the Broadcaster's version.
-*   **Compare:** Open the VS Code Diff Editor to manually inspect and merge changes.
+
+When a receiver modifies a file locally that the broadcaster then updates, SimpleSync pauses sync for that file and prompts:
+
+- **Keep Mine** — Ignore the incoming change.
+- **Accept Incoming** — Overwrite with the broadcaster's version.
+- **Compare** — Open the VS Code Diff Editor to inspect both versions side by side.
+
+Deletion conflicts are handled similarly — if the broadcaster deletes a file the receiver has modified, you're asked before it's removed.
 
 ## Sync Rules
 
 | Syncs | Never Syncs |
 | :--- | :--- |
-| All text files within the workspace root | `.git/` folder and its contents |
-| New file creations and deletions | `node_modules/` |
-| Subdirectories (recursive) | Files larger than 5MB |
-| `.simplesyncignore` patterns | Binary files (images, executables) |
+| All text files in the workspace | `.git/`, `node_modules/`, `dist/`, `build/`, `out/` |
+| New files, edits, and deletions | Files larger than 5 MB |
+| Subdirectories (recursive) | Binary files (images, executables, fonts) |
+| Respects `.simplesyncignore` patterns | `.env` and secret files |
+| Respects VS Code `files.exclude` settings | |
+
+## Custom Ignore Patterns
+
+Create a `.simplesyncignore` file in your project root:
+
+```
+# Ignore log files
+*.log
+
+# Ignore a specific directory
+tmp/
+
+# Ignore a specific file
+config/secrets.json
+```
 
 ## Requirements
-*   All machines must be on the same local subnet.
-*   Firewall must allow UDP (for mDNS discovery) and the TCP port assigned during broadcasting (visible in the sidebar).
+
+- All machines must be on the **same local network** (Wi-Fi or Ethernet).
+- Firewall must allow the TCP port shown in the status bar.
+- UDP port 5353 must be open for mDNS auto-discovery (optional — manual connect works without it).
 
 ## Troubleshooting
-*   **Session not discovered:** Ensure both machines are on the same Wi-Fi/LAN. Try `Connect Manually` using the IP and port shown on the Broadcaster's status bar.
-*   **Connection timed out:** Check if a firewall is blocking VS Code or the specific port.
-*   **Files not syncing:** Verify the file is not in `.gitignore` or larger than 5MB.
+
+| Problem | Solution |
+| :--- | :--- |
+| Session not discovered | Use **Connect Manually** with the `IP:Port` shown on the broadcaster's status bar. |
+| Connection timed out | Check firewall settings for VS Code and the broadcast port. |
+| Files not syncing | Verify the file isn't in `.gitignore`, `.simplesyncignore`, or over 5 MB. |
+| Wrong IP shown | The extension prefers Wi-Fi/Ethernet interfaces. Virtual adapters (VirtualBox, Docker, WSL) are filtered out. |
 
 ## Privacy
-SimpleSync operates entirely within your local network. No code, metadata, or usage statistics are ever sent to external servers or third-party services.
+
+SimpleSync operates entirely within your local network. No code, metadata, or telemetry is ever sent to external servers.
+
+## Links
+
+- [Marketplace](https://marketplace.visualstudio.com/items?itemName=sanket-jivtode.simplesync)
+- [GitHub](https://github.com/Kizal/SimpleSync)
+- [Report an Issue](https://github.com/Kizal/SimpleSync/issues)

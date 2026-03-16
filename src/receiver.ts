@@ -4,9 +4,10 @@ import Bonjour from 'bonjour-service';
 import * as fs from 'fs';
 import * as path from 'path';
 import { isExcluded, inferLanguage, MAX_FILE_SIZE_BYTES } from './exclusions';
-import { ConnectionState, WsMessage, FileEntry, PushPayload } from './types';
+import { ConnectionState, WsMessage, FileEntry, PushPayload, DeltaPayload } from './types';
 import { calculateDelta, formatDelta } from './delta';
 import { EventLog } from './eventLog';
+import { diff_match_patch } from 'diff-match-patch';
 
 interface Session {
   name: string;
@@ -22,6 +23,10 @@ export class Receiver {
   private connectedSession: Session | null = null;
   private state: ConnectionState = ConnectionState.Idle;
   private reconnectAttempts = 0;
+  private isAlive = true;
+  private heartbeatTimer: NodeJS.Timeout | null = null;
+  private disconnecting = false;
+  private deltaQueue: { relativePath: string, content: string, isPatch?: boolean }[] = [];
 
   /** Stores the last content received from the broadcaster, keyed by relativePath */
   private previousContent = new Map<string, string>();
@@ -32,6 +37,7 @@ export class Receiver {
   /** Tracks files currently showing a conflict prompt to avoid duplicate dialogs */
   private pendingConflicts = new Set<string>();
   private eventLog: EventLog;
+  private syncTimers = new Map<string, ReturnType<typeof setTimeout>>();
 
   constructor(statusBar: vscode.StatusBarItem, output: vscode.OutputChannel, eventLog: EventLog) {
     this.statusBar = statusBar;
@@ -57,7 +63,6 @@ export class Receiver {
           this.output.appendLine(`[Receiver] Found session: ${service.name} at ${host}:${service.port}`);
         });
 
-        // Collect results for 3 seconds then return
         setTimeout(() => {
           try {
             browser.stop();
@@ -66,7 +71,7 @@ export class Receiver {
             // Ignore cleanup errors
           }
           resolve(sessions);
-        }, 3000);
+        }, 2000);
       } catch (err) {
         this.output.appendLine(`[Receiver] mDNS discovery failed: ${err}`);
         if (bonjour) {
@@ -84,18 +89,11 @@ export class Receiver {
     loading.dispose();
 
     if (sessions.length === 0) {
-      const action = await vscode.window.showWarningMessage(
-        'No SimpleSync sessions found on your network.',
-        'Connect Manually',
-        'Retry'
-      );
-      if (action === 'Connect Manually') return this.showManualConnectInput();
-      if (action === 'Retry') return this.showSessionPicker();
-      return undefined;
+      return this.showManualConnectInput('No sessions found. Enter the IP:Port shown on the broadcasting machine.');
     }
 
     const items = sessions.map(s => ({
-      label: `● ${s.name}`,
+      label: `$(radio-tower) ${s.name}`,
       description: `${s.host}:${s.port}`,
       session: s,
     }));
@@ -107,10 +105,11 @@ export class Receiver {
     return selected?.session;
   }
 
-  async showManualConnectInput(): Promise<Session | undefined> {
+  async showManualConnectInput(promptOverride?: string): Promise<Session | undefined> {
     const input = await vscode.window.showInputBox({
-      prompt: 'Enter IP:Port of the broadcasting machine',
+      prompt: promptOverride || 'Enter IP:Port of the broadcasting machine',
       placeHolder: '192.168.1.45:49201',
+      ignoreFocusOut: true
     });
     if (!input) return undefined;
 
@@ -132,6 +131,7 @@ export class Receiver {
   async connect(session: Session): Promise<void> {
     this.connectedSession = session;
     this.reconnectAttempts = 0;
+    this.disconnecting = false;
     this.updateStatusBar(ConnectionState.Connecting);
     this.output.appendLine(`[Receiver] Connecting to ${session.name} at ${session.host}:${session.port}...`);
 
@@ -141,10 +141,17 @@ export class Receiver {
       this.ws.on('open', () => {
         this.output.appendLine(`[Receiver] Connected to ${session.name}`);
         this.reconnectAttempts = 0;
+        this.disconnecting = false;
+        this.isAlive = true;
+        this.startHeartbeat();
         this.updateStatusBar(ConnectionState.Connected);
         this.eventLog.add('connect', `Connected to ${session.name}`, `${session.host}:${session.port}`);
-        // Set context so Push Back menu item becomes visible
         vscode.commands.executeCommand('setContext', 'simplesync.isReceiver', true);
+      });
+
+      this.ws.on('ping', () => {
+        this.isAlive = true;
+        this.ws?.pong();
       });
 
       this.ws.on('message', (data: WebSocket.RawData) => {
@@ -157,17 +164,12 @@ export class Receiver {
       });
 
       this.ws.on('close', () => {
-        this.output.appendLine(`[Receiver] Connection closed`);
-        this.updateStatusBar(ConnectionState.Error);
-        vscode.commands.executeCommand('setContext', 'simplesync.isReceiver', false);
-        this.attemptReconnect(session);
+        this.handleDisconnect(session);
       });
 
       this.ws.on('error', (err: Error) => {
         this.output.appendLine(`[Receiver] Connection error: ${err.message}`);
-        vscode.window.showErrorMessage(
-          `SimpleSync: Could not connect to ${session.name}. Is it still broadcasting?`
-        );
+        this.handleDisconnect(session);
       });
     } catch (err) {
       this.output.appendLine(`[Receiver] Failed to connect: ${err}`);
@@ -176,11 +178,50 @@ export class Receiver {
     }
   }
 
+  private startHeartbeat(): void {
+    if (this.heartbeatTimer) clearInterval(this.heartbeatTimer);
+    this.heartbeatTimer = setInterval(() => {
+      if (!this.isAlive) {
+        this.output.appendLine(`[Receiver] Heartbeat failed. Closing connection.`);
+        this.ws?.terminate();
+        return;
+      }
+      this.isAlive = false;
+    }, 15000);
+  }
+
+  private handleDisconnect(session: Session): void {
+    // Guard against double-fire from both close + error events
+    if (this.disconnecting) return;
+    this.disconnecting = true;
+
+    if (this.heartbeatTimer) {
+      clearInterval(this.heartbeatTimer);
+      this.heartbeatTimer = null;
+    }
+    this.output.appendLine(`[Receiver] Connection lost/closed`);
+    this.updateStatusBar(ConnectionState.Error);
+    vscode.commands.executeCommand('setContext', 'simplesync.isReceiver', false);
+    this.attemptReconnect(session);
+  }
+
   private handleMessage(msg: WsMessage): void {
+    this.output.appendLine(`[Receiver] Message received: type=${msg.type}`);
     if (msg.type === 'initial') {
       this.writeFiles(msg.sessionName, msg.files);
+      while (this.deltaQueue.length > 0) {
+        const delta = this.deltaQueue.shift();
+        if (delta) {
+          this.applyDelta(delta.relativePath, delta.content, delta.isPatch);
+        }
+      }
     } else if (msg.type === 'delta') {
-      this.applyDelta(msg.filePath, msg.content);
+      if (!this.receivedRoot) {
+        this.output.appendLine(`[Receiver] Delta arrived before initial sync. Queuing: ${msg.filePath}`);
+        this.deltaQueue.push({ relativePath: msg.filePath, content: msg.content, isPatch: msg.isPatch });
+        return;
+      }
+      this.applyDelta(msg.filePath, msg.content, msg.isPatch);
     }
   }
 
@@ -204,10 +245,8 @@ export class Receiver {
         fs.writeFileSync(fullPath, file.content, 'utf-8');
         written++;
 
-        // Track for diff summaries
         this.previousContent.set(file.relativePath, file.content);
 
-        // Track largest file
         if (file.content.length > largest.size) {
           largest = { name: file.relativePath, size: file.content.length };
         }
@@ -216,7 +255,6 @@ export class Receiver {
       }
     }
 
-    // Open the first file in the editor
     if (files.length > 0) {
       const firstFile = path.join(targetDir, files[0].relativePath);
       try {
@@ -226,39 +264,55 @@ export class Receiver {
       }
     }
 
-    // Build summary with file count and size info
     const largestSize = `${(largest.size / 1024).toFixed(1)}KB`;
-    let msg = `✓ SimpleSync: ${written} files received from ${sessionName}`;
-    if (largest.name) msg += `\n  Largest: ${largest.name} (${largestSize})`;
+    let msg = `SimpleSync: ${written} files received from ${sessionName}`;
+    if (largest.name) msg += ` | Largest: ${largest.name} (${largestSize})`;
 
     vscode.window.showInformationMessage(msg);
     this.output.appendLine(`[Receiver] ${written} files written to ${targetDir}`);
     this.eventLog.add('file-sync', `Initial sync: ${written} files`);
   }
 
-  private applyDelta(relativePath: string, content: string): void {
+  private applyDelta(relativePath: string, content: string, isPatch?: boolean): void {
     if (!this.receivedRoot) return;
 
     const fullPath = path.join(this.receivedRoot, relativePath);
 
-    // Handle file deletion (empty content signals delete)
     if (content === '') {
       this.handleDeleteDelta(relativePath, fullPath);
       return;
     }
 
-    // Check for local modifications before overwriting
+    let resolvedContent = content;
     const lastBroadcasterContent = this.previousContent.get(relativePath);
+
+    if (isPatch) {
+      const prev = lastBroadcasterContent ?? '';
+      try {
+        const dmp = new diff_match_patch();
+        const patches = dmp.patch_fromText(content);
+        const [patchedText, results] = dmp.patch_apply(patches, prev);
+
+        if (results.every(r => r)) {
+          resolvedContent = patchedText;
+        } else {
+          this.output.appendLine(`[Receiver] Patch failed for ${relativePath}, skipping`);
+          return;
+        }
+      } catch (err) {
+        this.output.appendLine(`[Receiver] Failed to apply patch for ${relativePath}: ${err}`);
+        return;
+      }
+    }
 
     if (lastBroadcasterContent !== undefined && fs.existsSync(fullPath)) {
       try {
         const diskContent = fs.readFileSync(fullPath, 'utf-8');
 
-        // If disk differs from what the broadcaster last sent, the receiver edited locally
         if (diskContent !== lastBroadcasterContent) {
           this.output.appendLine(`[Receiver] Conflict detected: ${relativePath} has local edits`);
           this.eventLog.add('conflict', relativePath, 'local edits detected');
-          this.showConflictPrompt(relativePath, content, fullPath);
+          this.showConflictPrompt(relativePath, resolvedContent, fullPath);
           return;
         }
       } catch {
@@ -266,24 +320,20 @@ export class Receiver {
       }
     }
 
-    // No conflict — apply the delta
-    this.writeDelta(relativePath, content, fullPath);
+    this.writeDelta(relativePath, resolvedContent, fullPath);
   }
 
-  /** Handles deletion deltas with conflict check for locally modified files. */
   private handleDeleteDelta(relativePath: string, fullPath: string): void {
     if (!fs.existsSync(fullPath)) {
       this.previousContent.delete(relativePath);
       return;
     }
 
-    // Check if the file has been locally modified before deleting
     const lastBroadcasterContent = this.previousContent.get(relativePath);
     if (lastBroadcasterContent !== undefined) {
       try {
         const diskContent = fs.readFileSync(fullPath, 'utf-8');
         if (diskContent !== lastBroadcasterContent) {
-          // File was locally modified — ask before deleting
           this.showDeleteConflictPrompt(relativePath, fullPath);
           return;
         }
@@ -303,7 +353,6 @@ export class Receiver {
     this.previousContent.delete(relativePath);
   }
 
-  /** Writes incoming content to disk without conflict checks. */
   private writeDelta(relativePath: string, content: string, fullPath: string): void {
     const prev = this.previousContent.get(relativePath) ?? '';
     const summary = calculateDelta(prev, content);
@@ -319,31 +368,23 @@ export class Receiver {
       const fileName = path.basename(relativePath);
       this.showDeltaStatus(fileName, formatted);
     } catch (err) {
-      this.output.appendLine(`[Receiver] Error applying delta to ${relativePath}: ${err}`);
+      this.output.appendLine(`[Receiver] Failed to write delta for ${relativePath}: ${err}`);
     }
   }
 
-  /**
-   * Shows a conflict prompt with 3 options: Keep Mine, Accept Incoming, Compare.
-   * Dismiss (Escape) is treated as Keep Mine.
-   */
   private async showConflictPrompt(
     relativePath: string,
     incomingContent: string,
     fullPath: string,
   ): Promise<void> {
-    // Don't show duplicate prompts for the same file
-    if (this.pendingConflicts.has(relativePath)) {
-      this.output.appendLine(`[Receiver] Conflict prompt already active for ${relativePath}`);
-      return;
-    }
+    if (this.pendingConflicts.has(relativePath)) return;
 
     this.pendingConflicts.add(relativePath);
     const fileName = path.basename(relativePath);
 
     try {
       const choice = await vscode.window.showWarningMessage(
-        `SimpleSync: "${fileName}" was modified locally. Incoming changes from broadcaster will overwrite your edits.`,
+        `SimpleSync: "${fileName}" was modified locally. Incoming changes will overwrite your edits.`,
         { modal: false },
         'Keep Mine',
         'Accept Incoming',
@@ -355,12 +396,9 @@ export class Receiver {
         this.output.appendLine(`[Receiver] Conflict resolved: accepted incoming for ${relativePath}`);
       } else if (choice === 'Compare') {
         await this.openDiffEditor(relativePath, incomingContent, fullPath);
-        // Update previousContent so future deltas diff against the incoming version
         this.previousContent.set(relativePath, incomingContent);
         this.output.appendLine(`[Receiver] Conflict: opened diff editor for ${relativePath}`);
       } else {
-        // "Keep Mine" or dismissed — keep local version
-        // Update previousContent so future deltas don't re-trigger for the same base
         this.previousContent.set(relativePath, incomingContent);
         this.output.appendLine(`[Receiver] Conflict resolved: kept local version of ${relativePath}`);
       }
@@ -369,9 +407,6 @@ export class Receiver {
     }
   }
 
-  /**
-   * Shows a deletion conflict prompt when the broadcaster deletes a locally modified file.
-   */
   private async showDeleteConflictPrompt(
     relativePath: string,
     fullPath: string,
@@ -399,7 +434,6 @@ export class Receiver {
         }
         this.previousContent.delete(relativePath);
       } else {
-        // Keep the local version
         this.previousContent.delete(relativePath);
         this.output.appendLine(`[Receiver] Conflict resolved: kept locally modified ${relativePath}`);
       }
@@ -408,9 +442,6 @@ export class Receiver {
     }
   }
 
-  /**
-   * Opens VS Code's built-in diff editor with local version (left) vs incoming version (right).
-   */
   private async openDiffEditor(
     relativePath: string,
     incomingContent: string,
@@ -433,7 +464,7 @@ export class Receiver {
         'vscode.diff',
         localUri,
         incomingUri,
-        `${fileName} (Local ↔ Incoming)`,
+        `${fileName} (Local \u2194 Incoming)`,
       );
     } catch (err) {
       this.output.appendLine(`[Receiver] Error opening diff editor for ${relativePath}: ${err}`);
@@ -445,11 +476,9 @@ export class Receiver {
       clearTimeout(this.deltaStatusTimer);
     }
 
-    const originalText = this.statusBar.text;
-    this.statusBar.text = `$(sync) SimpleSync: ${fileName} updated (${summary})`;
+    this.statusBar.text = `$(sync) ${fileName} (${summary})`;
 
     this.deltaStatusTimer = setTimeout(() => {
-      // Restore normal status bar text
       if (this.state === ConnectionState.Connected) {
         this.updateStatusBar(ConnectionState.Connected);
       }
@@ -459,53 +488,50 @@ export class Receiver {
 
   async pushBack(): Promise<void> {
     if (!this.receivedRoot || !this.ws || this.ws.readyState !== WebSocket.OPEN) {
+      this.output.appendLine(`[Receiver] Push Back SKIPPED. Connected: ${!!this.ws}, State: ${this.ws?.readyState}, Root: ${this.receivedRoot}`);
       vscode.window.showWarningMessage('SimpleSync: Not connected to a session.');
       return;
     }
 
     const files: FileEntry[] = [];
-    this.walkDir(this.receivedRoot, this.receivedRoot, files);
+    try {
+      const pattern = new vscode.RelativePattern(this.receivedRoot, '**/*');
+      const uris = await vscode.workspace.findFiles(pattern);
+
+      for (const uri of uris) {
+        const filePath = uri.fsPath;
+        if (!filePath.startsWith(this.receivedRoot!)) continue;
+
+        const relativePath = path.relative(this.receivedRoot!, filePath).replace(/\\/g, '/');
+        if (isExcluded(relativePath)) continue;
+
+        try {
+          const stats = fs.statSync(filePath);
+          if (stats.size > MAX_FILE_SIZE_BYTES) continue;
+          const content = fs.readFileSync(filePath, 'utf-8');
+          files.push({ relativePath, content, language: inferLanguage(relativePath) });
+        } catch {
+          // Skip unreadable files
+        }
+      }
+    } catch (err) {
+      this.output.appendLine(`[Receiver] Error reading files for push back: ${err}`);
+    }
 
     const payload: PushPayload = { type: 'push', files };
+    this.output.appendLine(`[Receiver] Pushing back ${files.length} files`);
 
     try {
       this.ws.send(JSON.stringify(payload));
       this.output.appendLine(`[Receiver] Pushed ${files.length} files back to ${this.connectedSession?.name}`);
       this.eventLog.add('push', `Pushed ${files.length} file(s)`);
       vscode.window.showInformationMessage(
-        `✓ SimpleSync: ${files.length} file(s) pushed back to ${this.connectedSession?.name}.`
+        `SimpleSync: ${files.length} file(s) pushed back to ${this.connectedSession?.name}.`
       );
-    } catch (err) {
+    } catch (err: any) {
       this.output.appendLine(`[Receiver] Error pushing back: ${err}`);
+      this.eventLog.add('error', `Push back failed: ${err.message}`);
       vscode.window.showErrorMessage(`SimpleSync: Failed to push changes. ${err}`);
-    }
-  }
-
-  private walkDir(dir: string, root: string, files: FileEntry[]): void {
-    let entries: fs.Dirent[];
-    try {
-      entries = fs.readdirSync(dir, { withFileTypes: true });
-    } catch {
-      return;
-    }
-
-    for (const entry of entries) {
-      const fullPath = path.join(dir, entry.name);
-      const relativePath = path.relative(root, fullPath).replace(/\\/g, '/');
-      if (isExcluded(relativePath)) continue;
-
-      if (entry.isDirectory()) {
-        this.walkDir(fullPath, root, files);
-      } else if (entry.isFile()) {
-        try {
-          const stats = fs.statSync(fullPath);
-          if (stats.size > MAX_FILE_SIZE_BYTES) continue;
-          const content = fs.readFileSync(fullPath, 'utf-8');
-          files.push({ relativePath, content, language: inferLanguage(relativePath) });
-        } catch {
-          // Skip unreadable files
-        }
-      }
     }
   }
 
@@ -530,22 +556,30 @@ export class Receiver {
 
     switch (state) {
       case ConnectionState.Connecting:
-        this.statusBar.text = `$(sync~spin) SimpleSync: Connecting to ${sessionName}...`;
+        this.statusBar.text = `$(sync~spin) Connecting to ${sessionName}...`;
+        this.statusBar.backgroundColor = undefined;
         this.statusBar.color = undefined;
+        this.statusBar.tooltip = `SimpleSync: Connecting to ${sessionName}`;
         this.statusBar.command = 'simplesync.disconnect';
         break;
       case ConnectionState.Connected:
-        this.statusBar.text = `$(check) SimpleSync: ${sessionName}`;
+        this.statusBar.text = `$(check) ${sessionName} — ${this.connectedSession?.host}`;
+        this.statusBar.backgroundColor = undefined;
         this.statusBar.color = '#16A34A';
+        this.statusBar.tooltip = `SimpleSync: Connected to ${sessionName}\nHost: ${this.connectedSession?.host}:${this.connectedSession?.port}\nClick to disconnect`;
         this.statusBar.command = 'simplesync.disconnect';
         break;
       case ConnectionState.Error:
-        this.statusBar.text = `$(error) SimpleSync: Disconnected`;
-        this.statusBar.color = '#DC2626';
+        this.statusBar.text = `$(warning) SimpleSync: Disconnected`;
+        this.statusBar.backgroundColor = new vscode.ThemeColor('statusBarItem.errorBackground');
+        this.statusBar.color = undefined;
+        this.statusBar.tooltip = `SimpleSync: Connection lost. Check Output channel.`;
         this.statusBar.command = 'simplesync.disconnect';
         break;
       default:
         this.statusBar.text = '';
+        this.statusBar.backgroundColor = undefined;
+        this.statusBar.color = undefined;
         this.statusBar.command = undefined;
         break;
     }
@@ -554,6 +588,14 @@ export class Receiver {
   }
 
   disconnect(): void {
+    this.disconnecting = false;
+
+    // Clear sync timers
+    for (const timer of this.syncTimers.values()) {
+      clearTimeout(timer);
+    }
+    this.syncTimers.clear();
+
     try {
       this.ws?.close();
     } catch {
@@ -567,7 +609,6 @@ export class Receiver {
     this.statusBar.hide();
     vscode.commands.executeCommand('setContext', 'simplesync.isReceiver', false);
 
-    // Clean up temp incoming files used for diff editor
     if (this.receivedRoot) {
       const incomingDir = path.join(this.receivedRoot, '.simplesync-incoming');
       try {
@@ -580,5 +621,45 @@ export class Receiver {
     this.output.appendLine(`[Receiver] Disconnected`);
     this.eventLog.add('disconnect', 'Disconnected');
     vscode.window.showInformationMessage('SimpleSync: Disconnected.');
+  }
+
+  public onDocumentChanged(document: vscode.TextDocument): void {
+    if (this.state !== ConnectionState.Connected) return;
+    if (!this.receivedRoot) return;
+
+    const filePath = document.uri.fsPath;
+    // Only sync files inside the received directory
+    if (!filePath.startsWith(this.receivedRoot)) return;
+
+    const relativePath = path.relative(this.receivedRoot, filePath).replace(/\\/g, '/');
+    if (isExcluded(relativePath)) return;
+
+    if (this.syncTimers.has(relativePath)) {
+      clearTimeout(this.syncTimers.get(relativePath)!);
+    }
+
+    const timer = setTimeout(() => {
+      this.syncTimers.delete(relativePath);
+      this.sendLiveDelta(document, relativePath);
+    }, 1000);
+
+    this.syncTimers.set(relativePath, timer);
+  }
+
+  private sendLiveDelta(document: vscode.TextDocument, relativePath: string): void {
+    if (!this.ws || this.ws.readyState !== WebSocket.OPEN) return;
+
+    try {
+      const payload: DeltaPayload = {
+        type: 'delta',
+        filePath: relativePath,
+        content: document.getText(),
+        timestamp: Date.now(),
+      };
+      this.ws.send(JSON.stringify(payload));
+      this.output.appendLine(`[Receiver] Live delta: ${relativePath}`);
+    } catch (err) {
+      this.output.appendLine(`[Receiver] Error sending live delta: ${err}`);
+    }
   }
 }

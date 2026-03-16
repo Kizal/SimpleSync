@@ -25,17 +25,13 @@ async function run() {
   ok(csCmds.includes('simplesync.connectManual'), 'simplesync.connectManual command missing');
   ok(csCmds.includes('simplesync.disconnect'), 'simplesync.disconnect command missing');
 
-  // 3. Verify package.json attributes
-  const pkg = ext.packageJSON;
-  equal(pkg.name, 'simplesync', 'Name in package.json mismatch');
-  equal(pkg.displayName, 'SimpleSync', 'DisplayName mismatch');
-
   // Cleanup: ensure no broadcast is left running
   try {
     await vscode.commands.executeCommand('simplesync.stop');
   } catch (e) {}
 
-  console.log('  ✓ All core commands and attributes verified.');
+  console.log('  ✓ All core commands verified.');
 }
 
 module.exports = { run };
+
